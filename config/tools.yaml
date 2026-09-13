@@ -1,0 +1,10 @@
+schema_version: 1
+
+tools: {}
+
+selection_policy:
+  prefer_open_source: true
+  prefer_cli: true
+  prefer_offline: true
+  prefer_machine_readable_output: true
+  require_experimental_validation: true

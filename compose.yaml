@@ -1,0 +1,28 @@
+services:
+  research:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      # WSL Docker bridge/NAT may establish TCP but stall on repository traffic.
+      # Host networking is limited to image build; the service keeps its normal
+      # isolated Compose network at runtime.
+      network: host
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      WORKSPACE: ${WORKSPACE:-/workspace}
+      OUTPUT_DIR: ${OUTPUT_DIR:-/workspace/output}
+      CACHE_DIR: ${CACHE_DIR:-/workspace/cache}
+      TMP_DIR: ${TMP_DIR:-/workspace/tmp}
+      MAX_SCAN_THREADS: ${MAX_SCAN_THREADS:-4}
+      MAX_EXTRACTION_DEPTH: ${MAX_EXTRACTION_DEPTH:-5}
+    volumes:
+      - .:/workspace
+      - research-cache:/workspace/cache
+    working_dir: /workspace
+    stdin_open: true
+    tty: true
+
+volumes:
+  research-cache:
