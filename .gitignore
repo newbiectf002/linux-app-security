@@ -11,6 +11,8 @@ tmp/*
 research/raw/*
 !research/raw/.gitkeep
 
+samples/elf/generated/
+
 __pycache__/
 *.pyc
 .venv/
@@ -32,3 +34,5 @@ venv/
 *.db
 
 node_modules/
+
+exports/
