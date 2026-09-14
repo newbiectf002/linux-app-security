@@ -17,6 +17,8 @@ machine. From the cloned repository, restore the evidence without overwriting
 existing project files:
 
 ```bash
+sha256sum -c linux-app-security-evidence-....tar.gz.sha256
+
 ./scripts/import-project.sh /path/to/linux-app-security-evidence-....tar.gz
 ```
 
