@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Batch 1 Sample
+Exec=/opt/batch1/bin/batch1 %U
+TryExec=/opt/batch1/bin/batch1
+MimeType=x-scheme-handler/batch1;application/x-batch1;
+DBusActivatable=true
+Actions=SafeAction;
+
+[Desktop Action SafeAction]
+Name=Safe action
+Exec=/opt/batch1/bin/batch1 --safe

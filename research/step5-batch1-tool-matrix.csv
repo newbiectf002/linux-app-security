@@ -1,0 +1,73 @@
+check_id,subcheck,tool,coverage,tested,result,machine_readable,offline,recommended_role,notes
+CHK-01,Application Name,package-native metadata tools,FULL,yes,PASS,structured text,OFFLINE_FULL,PRIMARY,DEB and RPM identity verified
+CHK-01,Package ID,dpkg-deb/rpm,FULL,yes,PASS,structured text,OFFLINE_FULL,PRIMARY,Native package headers
+CHK-01,Version,dpkg-deb/rpm/FILENAME manifests,FULL,yes,PASS,structured text,OFFLINE_FULL,PRIMARY,Ecosystem-specific
+CHK-01,Architecture,file/readelf/dpkg-deb/rpm,FULL,yes,PASS,structured text,OFFLINE_FULL,PRIMARY,Multiple evidence sources
+CHK-01,Package Type,file,FULL,yes,PASS,text,OFFLINE_FULL,PRIMARY,Magic-based identification
+CHK-01,Runtime and Framework,file/binutils/manifests,PARTIAL,yes,PASS,text,OFFLINE_FULL,SUPPLEMENTARY,Requires evidence-based inference
+CHK-01,Primary Executable,package manifests and desktop entry,PARTIAL,yes,PASS,structured text,OFFLINE_FULL,SUPPLEMENTARY,Framework-specific
+CHK-01,SHA256,sha256sum,FULL,yes,PASS,text,OFFLINE_FULL,PRIMARY,Deterministic digest
+CHK-01,Build ID,readelf,FULL,yes,PASS,text,OFFLINE_FULL,PRIMARY,ELF note tested
+CHK-01,Entry Point,readelf and manifests,PARTIAL,yes,PASS,text,OFFLINE_FULL,SUPPLEMENTARY,ELF address or declared command
+CHK-01,Bundled Runtime,file/find/manifests,INDIRECT,yes,PASS,text,OFFLINE_FULL,SUPPLEMENTARY,Inventory plus inference
+CHK-02,DEB metadata,dpkg-deb,FULL,yes,PASS,structured text,OFFLINE_FULL,PRIMARY,Fields files control and hooks tested
+CHK-02,RPM metadata,rpm,FULL,yes,PASS,structured text,OFFLINE_FULL,PRIMARY,Info requires files scripts tested
+CHK-02,AppImage metadata,file/unsquashfs,PARTIAL,no,NOT_TESTED,text,NOT_TESTED,FALLBACK,No authentic AppImage sample in Batch 1
+CHK-02,Snap metadata,unsquashfs plus manifest parser,FULL,yes,PASS,text,OFFLINE_FULL,PRIMARY,Synthetic SquashFS snap.yaml tested
+CHK-02,Flatpak metadata,INI parser,PARTIAL,yes,PASS,structured text,OFFLINE_FULL,FALLBACK,Raw metadata tested; bundle CLI not tested
+CHK-02,desktop entry,desktop-file-validate plus INI parser,FULL,yes,PASS,text,NOT_TESTED,PRIMARY,Validation and field extraction are separate
+CHK-02,package.json,jq,FULL,yes,PASS,JSON,OFFLINE_FULL,PRIMARY,Native JSON
+CHK-02,MANIFEST.MF,text parser,PARTIAL,yes,PASS,structured text,OFFLINE_FULL,FALLBACK,No dedicated validator tested
+CHK-02,Dependencies,dpkg-deb/rpm/manifests,FULL,yes,PASS,structured text,OFFLINE_FULL,PRIMARY,Native package declarations
+CHK-02,Scripts and Hooks,dpkg-deb/rpm,FULL,yes,PASS,text,OFFLINE_FULL,PRIMARY,Read-only query; scripts not executed
+CHK-03,SetUID,find/stat,FULL,yes,PASS,text,OFFLINE_FULL,PRIMARY,Synthetic mode 4755 detected
+CHK-03,SetGID,find/stat,FULL,yes,PASS,text,OFFLINE_FULL,PRIMARY,Mode query supports it
+CHK-03,Linux File Capabilities,getcap,FULL,yes,PASS,text,NOT_TESTED,PRIMARY,Xattr detected; offline rerun not completed
+CHK-03,Ownership,stat/find,FULL,yes,PASS,text,OFFLINE_FULL,PRIMARY,Raw metadata only
+CHK-03,File Permissions,stat/find,FULL,yes,PASS,text,OFFLINE_FULL,PRIMARY,Raw metadata only
+CHK-03,World-writable Files,find,FULL,yes,PASS,text,OFFLINE_FULL,PRIMARY,Synthetic 0777 file detected
+CHK-03,Privileged Helper Candidates,find/getcap/manifests,PARTIAL,yes,PASS,text,PARTIAL_OFFLINE,SUPPLEMENTARY,Heuristic correlation required
+CHK-03,sudoers fragments,text parser,PARTIAL,yes,PASS,text,OFFLINE_FULL,FALLBACK,Collection only; visudo not tested
+CHK-03,Polkit artifacts,XML parser,PARTIAL,yes,PASS,XML,OFFLINE_FULL,FALLBACK,Collection only; semantic validator not tested
+CHK-03,systemd service user/group,text parser,FULL,yes,PASS,structured text,OFFLINE_FULL,SUPPLEMENTARY,User Group ExecStart collected
+CHK-03,AppArmor artifacts,find/text parser,INDIRECT,yes,PASS,text,OFFLINE_FULL,FALLBACK,Discovery only; no policy compiler tested
+CHK-03,SELinux artifacts,find/text parser,INDIRECT,yes,PASS,text,OFFLINE_FULL,FALLBACK,Discovery only; no policy compiler tested
+CHK-03,Snap confinement,manifest parser,FULL,yes,PASS,structured text,OFFLINE_FULL,SUPPLEMENTARY,Raw declaration not security conclusion
+CHK-03,Flatpak permissions,INI parser,FULL,yes,PASS,structured text,OFFLINE_FULL,SUPPLEMENTARY,Raw Context declaration tested
+CHK-04,desktop Exec,INI parser,FULL,yes,PASS,structured text,OFFLINE_FULL,PRIMARY,Context preserved
+CHK-04,TryExec,INI parser,FULL,yes,PASS,structured text,OFFLINE_FULL,PRIMARY,Context preserved
+CHK-04,MimeType and file handlers,INI parser,FULL,yes,PASS,structured text,OFFLINE_FULL,PRIMARY,Multiple values preserved
+CHK-04,URL scheme handler,INI parser,FULL,yes,PASS,structured text,OFFLINE_FULL,PRIMARY,x-scheme-handler detected
+CHK-04,Autostart,find plus INI parser,PARTIAL,yes,PASS,text,OFFLINE_FULL,SUPPLEMENTARY,Location context required
+CHK-04,D-Bus Activation,desktop-file-validate plus INI parser,FULL,yes,PASS,text,NOT_TESTED,PRIMARY,Filename contract caught experimentally
+CHK-04,Custom URI Scheme,INI parser,FULL,yes,PASS,structured text,OFFLINE_FULL,PRIMARY,Declaration only
+CHK-04,CLI Entry Point,package and ELF metadata,PARTIAL,yes,PASS,text,OFFLINE_FULL,SUPPLEMENTARY,Ecosystem-specific
+CHK-04,Package Entry Point,dpkg-deb/rpm/manifests,PARTIAL,yes,PASS,text,OFFLINE_FULL,SUPPLEMENTARY,Not standardized across packages
+CHK-05,RELRO,checksec/readelf,FULL,yes,PASS,JSON and text,OFFLINE_FULL,PRIMARY,Full partial and none differentiated
+CHK-05,Stack Canary,checksec/nm,FULL,yes,PASS,JSON and text,OFFLINE_FULL,PRIMARY,Positive and negative variants
+CHK-05,NX and Executable Stack,checksec/readelf,FULL,yes,PASS,JSON and text,OFFLINE_FULL,PRIMARY,PT_GNU_STACK tested
+CHK-05,PIE,checksec/readelf,FULL,yes,PASS,JSON and text,OFFLINE_FULL,PRIMARY,PIE and ET_EXEC variants
+CHK-05,FORTIFY,checksec/nm,PARTIAL,yes,NEEDS_REVIEW,JSON and text,PARTIAL_OFFLINE,SUPPLEMENTARY,Aggregator returned Unknown/No on fortified compile
+CHK-05,RPATH and RUNPATH,checksec/readelf,FULL,yes,PASS,JSON and text,OFFLINE_FULL,PRIMARY,RPATH variant tested
+CHK-05,RWX Segment,checksec/readelf,FULL,yes,PASS,JSON and text,OFFLINE_FULL,PRIMARY,SeparateCode and segment flags
+CHK-05,Stripped Symbols,file/readelf/nm,FULL,yes,PASS,text,OFFLINE_FULL,PRIMARY,Stripped and unstripped copies
+CHK-05,Debug Symbols,readelf,FULL,yes,PASS,text,OFFLINE_FULL,PRIMARY,Section inspection
+CHK-05,Build ID,readelf,FULL,yes,PASS,text,OFFLINE_FULL,PRIMARY,Present and absent variants
+CHK-05,Static Dynamic Linkage,file/readelf,FULL,yes,PASS,text,OFFLINE_FULL,PRIMARY,Dynamic sample tested; static sample gap
+CHK-05,DT_NEEDED,readelf/objdump,FULL,yes,PASS,text,OFFLINE_FULL,PRIMARY,Library list verified
+CHK-05,Interpreter,readelf,FULL,yes,PASS,text,OFFLINE_FULL,PRIMARY,PT_INTERP verified
+CHK-05,SONAME,readelf/objdump,FULL,yes,PASS,text,OFFLINE_FULL,PRIMARY,Supported; shared-object positive sample not built
+CHK-06,Imported Symbols,nm/readelf/objdump,FULL,yes,PASS,text,OFFLINE_FULL,PRIMARY,Dynamic imports preserved
+CHK-06,Exported Symbols,nm/readelf/objdump,FULL,yes,PASS,text,OFFLINE_FULL,PRIMARY,Dynamic exports supported
+CHK-06,Shared Dependencies,readelf/objdump,FULL,yes,PASS,text,OFFLINE_FULL,PRIMARY,DT_NEEDED
+CHK-06,Dynamic Imports,nm/readelf,PARTIAL,yes,PASS,text,OFFLINE_FULL,SUPPLEMENTARY,Runtime-resolved targets remain unknown
+CHK-06,Strings and API References,strings,PARTIAL,yes,PASS,text,OFFLINE_FULL,SUPPLEMENTARY,Context and false-positive risk
+CHK-06,Command Execution API,nm/readelf,PARTIAL,yes,PASS,text,OFFLINE_FULL,PRIMARY,Presence only
+CHK-06,Process API,nm/readelf,PARTIAL,yes,PASS,text,OFFLINE_FULL,PRIMARY,Presence only
+CHK-06,Filesystem API,nm/readelf,PARTIAL,yes,PASS,text,OFFLINE_FULL,PRIMARY,Presence only
+CHK-06,Network API,nm/readelf,FULL,yes,PASS,text,OFFLINE_FULL,PRIMARY,socket imported
+CHK-06,Dynamic Loading API,nm/readelf,FULL,yes,PASS,text,OFFLINE_FULL,PRIMARY,dlopen imported
+CHK-06,Environment API,nm/readelf,FULL,yes,PASS,text,OFFLINE_FULL,PRIMARY,getenv imported
+CHK-06,Privilege API,nm/readelf,PARTIAL,yes,PASS,text,OFFLINE_FULL,PRIMARY,Presence only
+CHK-06,Memory Protection API,nm/readelf,FULL,yes,PASS,text,OFFLINE_FULL,PRIMARY,mmap and mprotect imported
+CHK-06,Crypto TLS API,nm/readelf/objdump,FULL,yes,PASS,text,OFFLINE_FULL,PRIMARY,EVP and SSL imports tested

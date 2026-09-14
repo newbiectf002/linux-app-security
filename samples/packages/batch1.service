@@ -1,0 +1,9 @@
+[Unit]
+Description=Batch 1 metadata-only service
+
+[Service]
+Type=simple
+User=batch1
+Group=batch1
+ExecStart=/opt/batch1/bin/batch1
+NoNewPrivileges=true

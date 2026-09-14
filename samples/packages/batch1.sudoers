@@ -1,0 +1,1 @@
+%batch1-admin ALL=(root) /opt/batch1/bin/batch1 --maintenance

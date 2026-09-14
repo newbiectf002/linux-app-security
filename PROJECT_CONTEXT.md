@@ -20,7 +20,7 @@ Linux desktop applications, from artifact identification through reporting.
 - Step 2: Completed
 - Step 3: Completed
 - Step 4: Completed
-- Step 5: NOT STARTED
+- Step 5: Batch 1 (CHK-01–CHK-06) completed; later batches NOT STARTED
 
 ## Approved Baseline
 
@@ -31,7 +31,7 @@ Linux desktop applications, from artifact identification through reporting.
 
 ## Next Step
 
-Step 5 – Tool research and validation
+Step 5 – Human review of Batch 1, then explicitly authorize the next batch
 
 ## Important constraint
 
@@ -48,7 +48,8 @@ installed and experimentally tested.
 6. Step 10 — Tool execution scripts
 7. Step 11 — HTML result aggregation
 
-These future steps are not part of the current setup task. Step 5 has not started.
+Step 5 Batch 1 evidence and recommendations are recorded under `research/`.
+Batch 2 has not started.
 
 ---
 
@@ -89,8 +90,8 @@ Nguyên tắc quan trọng:
 
 # 3. Current State
 
-**Current Step:** Step 5 (not started)  
-**Status:** Steps 1–4 are the approved completed baseline; Step 5 is pending.
+**Current Step:** Step 5 Batch 1 completed; Batch 2 not started  
+**Status:** Steps 1–4 remain the approved baseline. Batch 1 evidence awaits human review.
 
 Step 1 hiện được hiểu là bước **fingerprinting + inventory**, chưa phải bước kiểm thử lỗ hổng.
 
@@ -453,7 +454,7 @@ STEP_01_Identification.md
 
 ## Step 5 — Tool Selection
 
-**Status:** Not started
+**Status:** Batch 1 (CHK-01–CHK-06) completed; Batch 2 not started
 
 ## Step 6 — Result Validation
 

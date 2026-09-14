@@ -1,0 +1,9 @@
+name: batch1-snap-sample
+version: '1.2.3'
+summary: Safe metadata-only sample
+confinement: strict
+base: core24
+apps:
+  batch1:
+    command: bin/batch1
+    plugs: [network]

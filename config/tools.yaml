@@ -1,6 +1,109 @@
 schema_version: 1
 
-tools: {}
+tools:
+  file:
+    status: selected
+    version_tested: "5.45"
+    role: primary
+    checks: [CHK-01]
+    offline: full
+    machine_readable: []
+    parser_required: true
+    install_method: "Ubuntu package: file"
+
+  gnu_core_find_utils:
+    status: selected
+    version_tested: "coreutils 9.4; Ubuntu 24.04 findutils"
+    role: primary
+    checks: [CHK-01, CHK-03]
+    offline: full
+    machine_readable: []
+    parser_required: true
+    install_method: "Ubuntu packages: coreutils, findutils"
+
+  gnu_binutils:
+    status: selected
+    version_tested: "2.42"
+    commands_tested: [readelf, objdump, nm, strings]
+    role: primary
+    checks: [CHK-01, CHK-05, CHK-06]
+    offline: full
+    machine_readable: []
+    parser_required: true
+    install_method: "Ubuntu package: binutils"
+
+  checksec:
+    status: selected
+    version_tested: "3.2.0 source tag (commit c8afc72b017a693c94a64cde0955b143502c3f40; local binary reports dev)"
+    role: primary
+    checks: [CHK-05]
+    offline: full
+    machine_readable: [json, yaml, xml, csv]
+    parser_required: false
+    install_method: "Build pinned upstream tag with Go >=1.25 in isolated container"
+    limitations:
+      - "FORTIFY returned Unknown/No for the fortified test sample; cross-check required"
+      - "Upstream tag 3.2.0 has no matching v3.2.0 Go module tag"
+
+  dpkg_deb:
+    status: selected
+    version_tested: "1.22.6ubuntu6.6"
+    role: primary
+    checks: [CHK-01, CHK-02, CHK-03]
+    offline: full
+    machine_readable: [structured_text]
+    parser_required: true
+    install_method: "Ubuntu dpkg package"
+
+  rpm:
+    status: selected
+    version_tested: "4.18.2"
+    role: primary
+    checks: [CHK-01, CHK-02, CHK-03]
+    offline: full
+    machine_readable: [queryformat]
+    parser_required: true
+    install_method: "Ubuntu package: rpm"
+
+  unsquashfs:
+    status: selected
+    version_tested: "4.6.1"
+    role: primary
+    checks: [CHK-01, CHK-02, CHK-03]
+    offline: full
+    machine_readable: []
+    parser_required: true
+    install_method: "Ubuntu package: squashfs-tools"
+
+  desktop_file_validate:
+    status: selected
+    version_tested: "0.27"
+    role: primary
+    checks: [CHK-02, CHK-04]
+    offline: not_tested
+    machine_readable: []
+    parser_required: true
+    install_method: "Ubuntu package: desktop-file-utils in isolated research container"
+
+  getcap:
+    status: selected
+    version_tested: "libcap2-bin 2.66"
+    role: supplementary
+    checks: [CHK-03]
+    offline: not_tested
+    machine_readable: []
+    parser_required: true
+    install_method: "Ubuntu package: libcap2-bin in isolated research container"
+
+  jq:
+    status: selected
+    version_tested: "1.7.1"
+    role: primary
+    checks: [CHK-01, CHK-02, CHK-04]
+    offline: full
+    machine_readable: [json]
+    parser_required: false
+    install_method: "Ubuntu package: jq"
 
 selection_policy:
   prefer_open_source: true

@@ -1,0 +1,6 @@
+{
+  "name": "batch1-electron-metadata-sample",
+  "version": "1.2.3",
+  "main": "main.js",
+  "engines": { "node": ">=20" }
+}
