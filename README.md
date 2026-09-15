@@ -42,6 +42,9 @@ dynamic-linking, permission, and API capability states are evidence and indicato
 
 Read `AGENTS.md`, then `PROJECT_CONTEXT.md`, followed by the four approved documents in `docs/` in numeric order.
 
+Operational scan commands for ELF executables and shared objects are documented
+in [`docs/SCAN_GUIDE.md`](docs/SCAN_GUIDE.md).
+
 ## Baseline container
 
 Build and open an interactive shell with:
