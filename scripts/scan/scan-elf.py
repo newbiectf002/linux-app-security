@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""CLI for ELF/shared-object static analysis implemented through Milestone 5."""
+"""CLI for ELF/shared-object static analysis implemented through Milestone 6."""
 
 from __future__ import annotations
 
@@ -17,9 +17,13 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("target", type=Path, help="single file or directory to inspect")
     parser.add_argument("--output-dir", type=Path, default=Path("output"))
+    parser.add_argument(
+        "--target-root", type=Path,
+        help="explicit extracted/live filesystem root used for safe dependency resolution",
+    )
     args = parser.parse_args()
     try:
-        run_root, normalized = scan(args.target, args.output_dir)
+        run_root, normalized = scan(args.target, args.output_dir, target_root=args.target_root)
     except (OSError, ValueError) as exc:
         parser.error(str(exc))
     print(json.dumps({

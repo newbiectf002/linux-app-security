@@ -92,6 +92,63 @@ class ElfInventoryTests(unittest.TestCase):
         self.capability_stripped = self.fixtures / "milestone5-stripped"
         shutil.copy2(self.capability_executable, self.capability_stripped)
         subprocess.run(["strip", "--strip-all", str(self.capability_stripped)], check=True)
+        self.dependency_root = self.root / "dependency-root"
+        dependency_bin = self.dependency_root / "opt" / "product" / "bin"
+        dependency_lib = self.dependency_root / "opt" / "product" / "lib"
+        dependency_bin.mkdir(parents=True)
+        dependency_lib.mkdir(parents=True)
+        dependency_source = ROOT / "samples" / "elf" / "milestone6-dependency.c"
+        consumer_source = ROOT / "samples" / "elf" / "milestone6-consumer.c"
+        self.dependency_library = dependency_lib / "libmilestone6.so.1"
+        subprocess.run([
+            "gcc", "-shared", "-fPIC", "-Wl,-soname,libmilestone6.so.1",
+            "-o", str(self.dependency_library), str(dependency_source),
+        ], check=True)
+        self.bundled_consumer = dependency_bin / "bundled-consumer"
+        subprocess.run([
+            "gcc", "-o", str(self.bundled_consumer), str(consumer_source),
+            f"-L{dependency_lib}", "-l:libmilestone6.so.1",
+            "-Wl,--enable-new-dtags,-rpath,$ORIGIN/../lib",
+        ], check=True)
+        self.missing_consumer = dependency_bin / "missing-consumer"
+        subprocess.run([
+            "gcc", "-o", str(self.missing_consumer), str(consumer_source),
+            f"-L{dependency_lib}", "-l:libmilestone6.so.1",
+            "-Wl,--enable-new-dtags,-rpath,$ORIGIN/../missing",
+        ], check=True)
+        ambiguous_a = self.dependency_root / "opt" / "product" / "lib-a"
+        ambiguous_b = self.dependency_root / "opt" / "product" / "lib-b"
+        ambiguous_a.mkdir()
+        ambiguous_b.mkdir()
+        shutil.copy2(self.dependency_library, ambiguous_a / self.dependency_library.name)
+        shutil.copy2(self.dependency_library, ambiguous_b / self.dependency_library.name)
+        self.ambiguous_consumer = dependency_bin / "ambiguous-consumer"
+        subprocess.run([
+            "gcc", "-o", str(self.ambiguous_consumer), str(consumer_source),
+            f"-L{ambiguous_a}", "-l:libmilestone6.so.1",
+            "-Wl,--enable-new-dtags,-rpath,$ORIGIN/../lib-a:$ORIGIN/../lib-b",
+        ], check=True)
+        plugin_dir = self.dependency_root / "opt" / "product" / "plugins"
+        plugin_dir.mkdir()
+        self.dependency_plugin = plugin_dir / "milestone6-plugin.so"
+        subprocess.run([
+            "gcc", "-shared", "-fPIC", "-DMILESTONE6_SHARED",
+            "-Wl,-soname,milestone6-plugin.so", "-o", str(self.dependency_plugin),
+            str(consumer_source), f"-L{dependency_lib}", "-l:libmilestone6.so.1",
+            "-Wl,--enable-new-dtags,-rpath,$ORIGIN/../lib",
+        ], check=True)
+        system_lib = self.dependency_root / "usr" / "lib"
+        system_lib.mkdir(parents=True)
+        system_dependency = system_lib / "libmilestone6system.so.1"
+        subprocess.run([
+            "gcc", "-shared", "-fPIC", "-Wl,-soname,libmilestone6system.so.1",
+            "-o", str(system_dependency), str(dependency_source),
+        ], check=True)
+        self.system_consumer = dependency_bin / "system-consumer"
+        subprocess.run([
+            "gcc", "-o", str(self.system_consumer), str(consumer_source),
+            f"-L{system_lib}", "-l:libmilestone6system.so.1",
+        ], check=True)
 
     def tearDown(self) -> None:
         self.temp.cleanup()
@@ -410,6 +467,94 @@ class ElfInventoryTests(unittest.TestCase):
         capabilities = result["records"][0]["capabilities"]
         self.assertEqual("PARTIAL", capabilities["_metadata"]["coverage"])
         self.assertIn("socket", capabilities["network"]["imported_symbols"])
+
+    def dependency_record(
+        self, binary: Path, run_id: str, dependency_name: str = "libmilestone6.so.1",
+    ) -> tuple[Path, dict[str, object]]:
+        run_root, result = scan(
+            binary, self.root / "m6-output", run_id=run_id,
+            target_root=self.dependency_root,
+        )
+        record = next(
+            item for item in result["records"][0]["dependencies"]
+            if item["dependency_name"] == dependency_name
+        )
+        return run_root, record
+
+    def test_origin_bundled_dependency_resolves_with_evidence(self) -> None:
+        run_root, dependency = self.dependency_record(self.bundled_consumer, "bundled")
+        self.assertEqual("RESOLVED", dependency["resolution_status"])
+        self.assertEqual("BUNDLED", dependency["bundled_or_system"])
+        self.assertEqual(str(self.dependency_library), dependency["resolved_path"])
+        self.assertIsNone(dependency["version"])
+        evidence_id = dependency["evidence_refs"][-1]
+        evidence = next((run_root / "raw").glob(f"{evidence_id}*"))
+        self.assertTrue((evidence / "result.json").is_file())
+
+    def test_system_like_dependency_classification_does_not_guess_version(self) -> None:
+        _, dependency = self.dependency_record(
+            self.system_consumer, "system-like", "libmilestone6system.so.1",
+        )
+        self.assertEqual("RESOLVED", dependency["resolution_status"])
+        self.assertEqual("SYSTEM", dependency["bundled_or_system"])
+        self.assertEqual("UNKNOWN", dependency["package_owner_status"])
+        self.assertIsNone(dependency["version"])
+        self.assertEqual("ABI_IDENTIFIER_NOT_PACKAGE_VERSION", dependency["soname_semantics"])
+
+    def test_dependency_not_found_is_isolated(self) -> None:
+        _, dependency = self.dependency_record(self.missing_consumer, "missing")
+        self.assertEqual("NOT_FOUND", dependency["resolution_status"])
+        self.assertIsNone(dependency["resolved_path"])
+
+    def test_ambiguous_dependency_does_not_choose_first_candidate(self) -> None:
+        _, dependency = self.dependency_record(self.ambiguous_consumer, "ambiguous")
+        self.assertEqual("AMBIGUOUS", dependency["resolution_status"])
+        self.assertIsNone(dependency["resolved_path"])
+
+    def test_shared_object_dt_needed_resolves_like_executable(self) -> None:
+        _, dependency = self.dependency_record(self.dependency_plugin, "shared-dependency")
+        self.assertEqual("RESOLVED", dependency["resolution_status"])
+        self.assertEqual("BUNDLED", dependency["bundled_or_system"])
+
+    def test_missing_target_root_is_explicit(self) -> None:
+        _, result = scan(self.system_consumer, self.root / "m6-output", run_id="no-root")
+        dependency = next(
+            item for item in result["records"][0]["dependencies"]
+            if item["dependency_name"] == "libmilestone6system.so.1"
+        )
+        self.assertEqual("TARGET_ROOT_CONTEXT_REQUIRED", dependency["resolution_status"])
+
+    def test_relative_search_path_requires_runtime_context(self) -> None:
+        _, result = scan(
+            self.fixtures / "with-runpath", self.root / "m6-output", run_id="runtime-context",
+        )
+        self.assertTrue(result["records"][0]["dependencies"])
+        self.assertTrue(all(
+            item["resolution_status"] == "RUNTIME_CONTEXT_REQUIRED"
+            for item in result["records"][0]["dependencies"]
+        ))
+
+    def test_package_owner_when_host_database_supports_it(self) -> None:
+        if not shutil.which("dpkg-query"):
+            self.skipTest("dpkg-query unavailable")
+        _, result = scan(Path("/bin/ls"), self.root / "m6-output", run_id="host-owner", target_root=Path("/"))
+        resolved = [item for item in result["records"][0]["dependencies"] if item["package_owner_status"] == "RESOLVED"]
+        if not resolved:
+            self.skipTest("host package database does not own a resolved /bin/ls dependency path")
+        self.assertTrue(resolved[0]["package_owner"])
+        self.assertEqual("RESOLVED", resolved[0]["version_status"])
+
+    def test_package_tool_unavailable_preserves_dependency_record(self) -> None:
+        original_which = shutil.which
+
+        def without_dpkg_query(tool: str) -> str | None:
+            return None if Path(tool).name == "dpkg-query" else original_which(tool)
+
+        with mock.patch("elf_inventory.shutil.which", side_effect=without_dpkg_query):
+            _, result = scan(Path("/bin/ls"), self.root / "m6-output", run_id="no-package-tool", target_root=Path("/"))
+        resolved = [item for item in result["records"][0]["dependencies"] if item["resolution_status"] == "RESOLVED"]
+        self.assertTrue(resolved)
+        self.assertTrue(all(item["package_owner_status"] == "TOOL_UNAVAILABLE" for item in resolved))
 
 
 if __name__ == "__main__":

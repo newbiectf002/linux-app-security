@@ -18,8 +18,11 @@ Milestone 4: ELF filesystem permission, capability, parent-directory, and safe
 search-path directory context implemented.
 Milestone 5: ELF dynamic-symbol API capability indicators implemented for ELF executables and shared objects.
 
+Milestone 6: deterministic ELF dependency resolution and provenance evidence
+implemented with explicit target-root context.
+
 The current implementation is an ELF/`.so` MVP foundation, not a complete
-production scanner. Dependency provenance, correlation,
+production scanner. Correlation,
 export, and reporting milestones are not implemented yet. Normalized hardening,
 dynamic-linking, permission, and API capability states are evidence and indicators, not findings.
 
@@ -62,6 +65,13 @@ executing the target:
 
 ```sh
 python3 scripts/scan/scan-elf.py <file-or-directory>
+```
+
+For deterministic dependency resolution, provide an explicit extracted or live
+filesystem root. Host package ownership is queried only when this is `/`:
+
+```sh
+python3 scripts/scan/scan-elf.py <file-or-directory> --target-root <filesystem-root>
 ```
 
 Each execution creates a unique directory under `output/runs/` containing

@@ -20,7 +20,7 @@ from typing import Any, Iterable
 
 
 ELF_MAGIC = b"\x7fELF"
-SCHEMA_VERSION = "1.4"
+SCHEMA_VERSION = "1.5"
 
 CAPABILITY_SYMBOLS: dict[str, tuple[str, ...]] = {
     "command_execution": ("system", "popen", "execve", "execvp", "execl", "posix_spawn"),
@@ -444,6 +444,168 @@ def evaluate_capabilities(
 
 def split_search_paths(values: list[str]) -> list[str]:
     return [entry for value in values for entry in value.split(":")]
+
+
+def system_library_directories(architecture: str | None) -> list[str]:
+    triplets = {
+        "x86_64": "x86_64-linux-gnu", "x86": "i386-linux-gnu",
+        "aarch64": "aarch64-linux-gnu", "arm": "arm-linux-gnueabihf",
+    }
+    directories = ["/lib", "/usr/lib", "/lib64", "/usr/lib64"]
+    if architecture in triplets:
+        triplet = triplets[architecture]
+        directories = [f"/lib/{triplet}", f"/usr/lib/{triplet}", *directories]
+    return directories
+
+
+def dependency_candidate(
+    directory: str, dependency_name: str, artifact: Path, target_root: Path | None,
+) -> tuple[Path | None, str | None]:
+    origin_pattern = re.compile(r"\$(?:ORIGIN|\{ORIGIN\})")
+    if origin_pattern.search(directory):
+        expanded = origin_pattern.sub(str(artifact.parent.resolve()), directory)
+        return Path(expanded) / dependency_name, None
+    if directory in {"", "."} or not directory.startswith("/"):
+        return None, "RUNTIME_CONTEXT_REQUIRED"
+    if target_root is None:
+        return None, "TARGET_ROOT_CONTEXT_REQUIRED"
+    return target_root / directory.lstrip("/") / dependency_name, None
+
+
+def classify_dependency_path(path: Path, target_root: Path | None) -> str:
+    if target_root is None:
+        return "UNKNOWN"
+    try:
+        relative = path.resolve().relative_to(target_root.resolve())
+    except (OSError, ValueError):
+        return "UNKNOWN"
+    if relative.parts[:1] == ("lib",) or relative.parts[:2] == ("usr", "lib"):
+        return "SYSTEM"
+    return "BUNDLED"
+
+
+def parse_dpkg_owner(text: str, resolved_path: Path) -> str | None:
+    expected = str(resolved_path)
+    owners = []
+    for line in text.splitlines():
+        if ": " in line:
+            owner, path = line.split(": ", 1)
+            if path == expected:
+                owners.append(owner)
+    return sorted(set(owners))[0] if len(set(owners)) == 1 else None
+
+
+def parse_dpkg_version(text: str, package_owner: str) -> str | None:
+    for line in text.splitlines():
+        fields = line.split("\t", 1)
+        if len(fields) == 2 and fields[0] == package_owner and fields[1]:
+            return fields[1]
+    return None
+
+
+def package_provenance(
+    resolved_path: Path, bundling: str, target_root: Path | None, runner: EvidenceRunner,
+) -> tuple[dict[str, Any], list[EvidenceReference]]:
+    if bundling != "SYSTEM" or target_root is None or target_root.resolve() != Path("/"):
+        return {
+            "package_owner": None,
+            "package_owner_status": "UNKNOWN",
+            "version": None,
+            "version_status": "UNKNOWN",
+        }, []
+    owner_query = runner.run(["dpkg-query", "-S", str(resolved_path)], resolved_path)
+    references = [owner_query.reference]
+    if owner_query.exit_code == 127:
+        status, owner = "TOOL_UNAVAILABLE", None
+    elif owner_query.exit_code != 0:
+        status, owner = "PACKAGE_DATABASE_UNAVAILABLE", None
+    else:
+        owner = parse_dpkg_owner(owner_query.stdout, resolved_path)
+        status = "RESOLVED" if owner else "UNKNOWN"
+    if not owner:
+        return {
+            "package_owner": None, "package_owner_status": status,
+            "version": None, "version_status": "UNKNOWN",
+        }, references
+    version_query = runner.run(
+        ["dpkg-query", "-W", "-f=${binary:Package}\\t${Version}\\n", owner], resolved_path,
+    )
+    references.append(version_query.reference)
+    version = parse_dpkg_version(version_query.stdout, owner) if version_query.exit_code == 0 else None
+    return {
+        "package_owner": owner, "package_owner_status": "RESOLVED",
+        "version": version, "version_status": "RESOLVED" if version else "UNKNOWN",
+    }, references
+
+
+def evaluate_dependencies(
+    artifact: Path, component_id_value: str | None, architecture: str | None,
+    dynamic_linking: dict[str, Any], target_root: Path | None, runner: EvidenceRunner,
+) -> tuple[list[dict[str, Any]], list[EvidenceReference]]:
+    records: list[dict[str, Any]] = []
+    all_references: list[EvidenceReference] = []
+    search_entries = [*dynamic_linking["rpath"]["entries"], *dynamic_linking["runpath"]["entries"]]
+    if target_root is not None:
+        search_entries.extend(system_library_directories(architecture))
+    for needed in dynamic_linking["needed"]:
+        name = needed["name"]
+        candidates: list[Path] = []
+        deferred: set[str] = {"TARGET_ROOT_CONTEXT_REQUIRED"} if target_root is None else set()
+        inspected: list[dict[str, Any]] = []
+        for directory in search_entries:
+            candidate, deferred_status = dependency_candidate(directory, name, artifact, target_root)
+            if deferred_status:
+                deferred.add(deferred_status)
+                inspected.append({"directory": directory, "candidate": None, "status": deferred_status})
+                continue
+            assert candidate is not None
+            try:
+                exists = candidate.is_file()
+                inspected.append({"directory": directory, "candidate": str(candidate), "status": "FOUND" if exists else "NOT_FOUND"})
+                if exists:
+                    candidates.append(candidate.resolve())
+            except OSError as exc:
+                inspected.append({"directory": directory, "candidate": str(candidate), "status": "ERROR", "error": str(exc)})
+                deferred.add("ERROR")
+        unique_candidates = sorted(set(candidates), key=str)
+        if len(unique_candidates) > 1:
+            resolution_status, resolved = "AMBIGUOUS", None
+        elif len(unique_candidates) == 1:
+            resolution_status, resolved = "RESOLVED", unique_candidates[0]
+        elif "ERROR" in deferred:
+            resolution_status, resolved = "ERROR", None
+        elif "RUNTIME_CONTEXT_REQUIRED" in deferred:
+            resolution_status, resolved = "RUNTIME_CONTEXT_REQUIRED", None
+        elif "TARGET_ROOT_CONTEXT_REQUIRED" in deferred:
+            resolution_status, resolved = "TARGET_ROOT_CONTEXT_REQUIRED", None
+        else:
+            resolution_status, resolved = "NOT_FOUND", None
+        resolution_ref = runner.record_structured("dependency_resolution", artifact, {
+            "component_id": component_id_value, "dependency_name": name,
+            "target_root": str(target_root) if target_root is not None else None,
+            "search_entries": search_entries, "inspected_candidates": inspected,
+            "resolution_status": resolution_status,
+            "matching_candidates": [str(item) for item in unique_candidates],
+        })
+        references = [resolution_ref]
+        bundling = classify_dependency_path(resolved, target_root) if resolved else "UNKNOWN"
+        package = {
+            "package_owner": None, "package_owner_status": "UNKNOWN",
+            "version": None, "version_status": "UNKNOWN",
+        }
+        if resolved:
+            package, package_refs = package_provenance(resolved, bundling, target_root, runner)
+            references.extend(package_refs)
+        records.append({
+            "dependency_name": name, "resolved_path": str(resolved) if resolved else None,
+            "resolution_status": resolution_status, "bundled_or_system": bundling,
+            **package, "soname": name,
+            "soname_semantics": "ABI_IDENTIFIER_NOT_PACKAGE_VERSION",
+            "origin": "DT_NEEDED",
+            "evidence_refs": [*needed["evidence_refs"], *[item.evidence_id for item in references]],
+        })
+        all_references.extend(references)
+    return records, all_references
 
 
 def search_path_indicators(entries: list[str]) -> list[str]:
@@ -910,7 +1072,7 @@ def iter_targets(target: Path, excluded_root: Path | None = None) -> Iterable[Pa
                 yield path
 
 
-def analyze_file(path: Path, runner: EvidenceRunner) -> dict[str, Any]:
+def analyze_file(path: Path, runner: EvidenceRunner, target_root: Path | None = None) -> dict[str, Any]:
     evidence: list[EvidenceReference] = []
     sha = runner.run(["sha256sum", "--", str(path)], path)
     evidence.append(sha.reference)
@@ -928,6 +1090,7 @@ def analyze_file(path: Path, runner: EvidenceRunner) -> dict[str, Any]:
         "dynamic_linking": None,
         "permissions": None,
         "capabilities": None,
+        "dependencies": None,
         "classification_evidence": [],
         "raw_evidence": [item.as_dict() for item in evidence],
     }
@@ -1015,33 +1178,53 @@ def analyze_file(path: Path, runner: EvidenceRunner) -> dict[str, Any]:
             component_type, file_result.stdout, base["dynamic_linking"]["linkage"],
             symbols, exported_symbols, readelf_dynsyms,
         )
+        dependencies, dependency_evidence = evaluate_dependencies(
+            path, base["component_id"], base["architecture"], base["dynamic_linking"],
+            target_root, runner,
+        )
+        evidence.extend(dependency_evidence)
+        base["raw_evidence"] = [item.as_dict() for item in evidence]
+        base["dependencies"] = dependencies
     else:
         base["hardening"] = None
         base["dynamic_linking"] = None
         base["permissions"] = None
         base["capabilities"] = None
+        base["dependencies"] = None
     return base
 
 
-def scan(target: Path, output_root: Path, run_id: str | None = None) -> tuple[Path, dict[str, Any]]:
+def scan(
+    target: Path, output_root: Path, run_id: str | None = None,
+    target_root: Path | None = None,
+) -> tuple[Path, dict[str, Any]]:
     target = target.absolute()
     output_root = output_root.resolve()
     if not target.exists() or not (target.is_file() or target.is_dir()):
         raise ValueError(f"target must be an existing file or directory: {target}")
+    if target_root is not None:
+        target_root = target_root.resolve()
+        if not target_root.is_dir():
+            raise ValueError(f"target root must be an existing directory: {target_root}")
+        try:
+            target.resolve().relative_to(target_root)
+        except ValueError as exc:
+            raise ValueError(f"target must be inside the explicit target root: {target}") from exc
     actual_run_id = run_id or new_run_id()
     targets = list(iter_targets(target, excluded_root=output_root))
     run_root = output_root / "runs" / actual_run_id
     run_root.mkdir(parents=True, exist_ok=False)
     runner = EvidenceRunner(run_root)
     started = utc_now()
-    records = [analyze_file(path, runner) for path in targets]
+    records = [analyze_file(path, runner, target_root) for path in targets]
     normalized = {
         "schema_version": SCHEMA_VERSION,
         "run_id": actual_run_id,
-        "milestone": "5-elf-symbol-api-capability",
+        "milestone": "6-elf-dependency-provenance",
         "started_at": started,
         "finished_at": utc_now(),
         "target": str(target),
+        "target_root": str(target_root) if target_root is not None else None,
         "records": records,
         "summary": {
             "total": len(records),
@@ -1058,6 +1241,7 @@ def scan(target: Path, output_root: Path, run_id: str | None = None) -> tuple[Pa
         "schema_version": SCHEMA_VERSION,
         "run_id": actual_run_id,
         "target": str(target),
+        "target_root": str(target_root) if target_root is not None else None,
         "started_at": started,
         "finished_at": normalized["finished_at"],
         "normalized_output": "normalized/inventory.json",
