@@ -21,6 +21,7 @@ Linux desktop applications, from artifact identification through reporting.
 - Step 3: Completed
 - Step 4: Completed
 - Step 5: Batch 1 (CHK-01–CHK-06) completed; later batches NOT STARTED
+- Step 6: Minimal ELF result evaluation/correlation core implemented; awaiting review
 
 ## Approved Baseline
 
@@ -31,7 +32,7 @@ Linux desktop applications, from artifact identification through reporting.
 
 ## Next Step
 
-Step 5 – Human review of Batch 1, then explicitly authorize the next batch
+Step 6 – Human review of the minimal ELF evaluation/correlation rules
 
 ## Important constraint
 

@@ -21,9 +21,12 @@ Milestone 5: ELF dynamic-symbol API capability indicators implemented for ELF ex
 Milestone 6: deterministic ELF dependency resolution and provenance evidence
 implemented with explicit target-root context.
 
+Step 6 core: four minimal ELF permission/privilege correlation rules implemented;
+findings remain reviewable evidence-based classifications rather than confirmed vulnerabilities.
+
 The current implementation is an ELF/`.so` MVP foundation, not a complete
-production scanner. Correlation,
-export, and reporting milestones are not implemented yet. Normalized hardening,
+production scanner. Broader correlation, export, and reporting milestones are
+not implemented yet. Normalized hardening,
 dynamic-linking, permission, and API capability states are evidence and indicators, not findings.
 
 ## Project structure
@@ -75,4 +78,5 @@ python3 scripts/scan/scan-elf.py <file-or-directory> --target-root <filesystem-r
 ```
 
 Each execution creates a unique directory under `output/runs/` containing
-immutable per-invocation raw evidence and `normalized/inventory.json`.
+immutable per-invocation raw evidence, `normalized/inventory.json`, and the
+minimal evaluation output `normalized/findings.json`.

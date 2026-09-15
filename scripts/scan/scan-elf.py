@@ -30,6 +30,7 @@ def main() -> int:
         "run_id": normalized["run_id"],
         "run_root": str(run_root),
         "normalized_output": str(run_root / "normalized" / "inventory.json"),
+        "findings_output": str(run_root / "normalized" / "findings.json"),
         "summary": normalized["summary"],
     }, indent=2))
     return 0

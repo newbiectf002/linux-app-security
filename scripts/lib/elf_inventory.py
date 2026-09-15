@@ -18,6 +18,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
+from result_evaluation import evaluate_inventory
+
 
 ELF_MAGIC = b"\x7fELF"
 SCHEMA_VERSION = "1.5"
@@ -1237,6 +1239,8 @@ def scan(
     normalized_dir = run_root / "normalized"
     normalized_dir.mkdir()
     atomic_json(normalized_dir / "inventory.json", normalized)
+    evaluation = evaluate_inventory(normalized)
+    atomic_json(normalized_dir / "findings.json", evaluation)
     atomic_json(run_root / "run.json", {
         "schema_version": SCHEMA_VERSION,
         "run_id": actual_run_id,
@@ -1245,5 +1249,6 @@ def scan(
         "started_at": started,
         "finished_at": normalized["finished_at"],
         "normalized_output": "normalized/inventory.json",
+        "findings_output": "normalized/findings.json",
     })
     return run_root, normalized
