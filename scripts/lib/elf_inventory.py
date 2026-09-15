@@ -20,7 +20,16 @@ from typing import Any, Iterable
 
 
 ELF_MAGIC = b"\x7fELF"
-SCHEMA_VERSION = "1.3"
+SCHEMA_VERSION = "1.4"
+
+CAPABILITY_SYMBOLS: dict[str, tuple[str, ...]] = {
+    "command_execution": ("system", "popen", "execve", "execvp", "execl", "posix_spawn"),
+    "process_debug": ("fork", "clone", "kill", "ptrace"),
+    "filesystem": ("open", "openat", "fopen", "unlink", "chmod", "chown", "rename"),
+    "network": ("socket", "connect", "bind", "listen", "accept", "send", "recv", "getaddrinfo"),
+    "dynamic_loading": ("dlopen", "dlsym"),
+    "privilege_memory": ("setuid", "setgid", "setresuid", "capset", "mmap", "mprotect"),
+}
 
 
 def tool_environment() -> dict[str, str]:
@@ -324,6 +333,113 @@ def parse_objdump_private_headers(text: str) -> dict[str, list[str]]:
         if match:
             result[mapping[match.group(1)]].append(match.group(2))
     return result
+
+
+def normalize_symbol_name(name: str) -> str:
+    """Remove a symbol version for exact capability matching."""
+    return name.split("@", 1)[0]
+
+
+def parse_nm_symbols(text: str) -> list[dict[str, str]]:
+    """Parse GNU nm output without substring matching."""
+    parsed: list[dict[str, str]] = []
+    for line in text.splitlines():
+        fields = line.split()
+        if len(fields) < 2:
+            continue
+        symbol_type, raw_name = fields[-2:]
+        if len(symbol_type) != 1 or not symbol_type.isalpha():
+            continue
+        parsed.append({
+            "name": normalize_symbol_name(raw_name),
+            "raw_name": raw_name,
+            "symbol_type": symbol_type,
+        })
+    return parsed
+
+
+def parse_readelf_dynsyms(text: str) -> tuple[set[str], set[str]]:
+    imported: set[str] = set()
+    exported: set[str] = set()
+    for line in text.splitlines():
+        match = re.match(
+            r"\s*\d+:\s+\S+\s+\d+\s+\S+\s+\S+\s+\S+\s+(\S+)\s+(.+?)\s*$",
+            line,
+        )
+        if not match:
+            continue
+        section_index, raw_name = match.groups()
+        raw_name = re.sub(r"\s+\(\d+\)$", "", raw_name)
+        name = normalize_symbol_name(raw_name)
+        if name:
+            (imported if section_index == "UND" else exported).add(name)
+    return imported, exported
+
+
+def evaluate_capabilities(
+    component_type: str, file_text: str, linkage: str,
+    imported_nm: Invocation, exported_nm: Invocation, readelf_dynsyms: Invocation,
+) -> dict[str, Any]:
+    """Normalize CHK-06 indicators; never create a finding or severity."""
+    nm_available = imported_nm.exit_code == 0 and exported_nm.exit_code == 0
+    nm_imported = {item["name"] for item in parse_nm_symbols(imported_nm.stdout)} if imported_nm.exit_code == 0 else set()
+    nm_exported = {item["name"] for item in parse_nm_symbols(exported_nm.stdout)} if exported_nm.exit_code == 0 else set()
+    if readelf_dynsyms.exit_code == 0:
+        readelf_imported, readelf_exported = parse_readelf_dynsyms(readelf_dynsyms.stdout)
+    else:
+        readelf_imported, readelf_exported = set(), set()
+    imported = nm_imported if imported_nm.exit_code == 0 else readelf_imported
+    exported = nm_exported if exported_nm.exit_code == 0 else readelf_exported
+    stripped = "stripped" in file_text.lower() and "not stripped" not in file_text.lower()
+    limitations = [
+        "Capability presence is an indicator, not proof of a vulnerability or reachable behavior.",
+        "Absence from the dynamic symbol table is not proof that a capability is absent.",
+    ]
+    if linkage == "STATIC":
+        coverage = "UNKNOWN"
+        limitations.append("Static linkage can hide API use from dynamic-symbol inspection.")
+    elif stripped:
+        coverage = "PARTIAL"
+        limitations.append("The ELF is stripped; available dynamic symbols provide partial coverage only.")
+    elif not nm_available and readelf_dynsyms.exit_code == 0:
+        coverage = "PARTIAL"
+        limitations.append("nm was unavailable or failed; readelf dynamic symbols were used as fallback.")
+    elif not nm_available:
+        coverage = "UNKNOWN"
+        limitations.append("nm and the readelf fallback did not provide complete dynamic-symbol evidence.")
+    else:
+        coverage = "COMPLETE_FOR_DYNAMIC_SYMBOLS"
+    nm_refs = [imported_nm.reference.evidence_id, exported_nm.reference.evidence_id]
+    readelf_refs = [readelf_dynsyms.reference.evidence_id]
+    groups: dict[str, Any] = {}
+    for group, candidates in CAPABILITY_SYMBOLS.items():
+        matched_imports = sorted(imported.intersection(candidates))
+        matched_exports = sorted(exported.intersection(candidates))
+        groups[group] = {
+            "detected": bool(matched_imports or matched_exports),
+            "symbols": sorted(set(matched_imports + matched_exports)),
+            "imported_symbols": matched_imports,
+            "exported_symbols": matched_exports,
+            "evidence_refs": nm_refs + readelf_refs,
+        }
+    groups["_metadata"] = {
+        "coverage": coverage,
+        "component_scope": component_type,
+        "source": "dynamic_symbols",
+        "nm_status": "SUCCESS" if nm_available else "UNAVAILABLE_OR_ERROR",
+        "readelf_fallback_status": "SUCCESS" if readelf_dynsyms.exit_code == 0 else "UNAVAILABLE_OR_ERROR",
+        "cross_check": (
+            "AGREEMENT"
+            if nm_available and readelf_dynsyms.exit_code == 0
+            and nm_imported == readelf_imported and nm_exported == readelf_exported
+            else "DISAGREEMENT"
+            if nm_available and readelf_dynsyms.exit_code == 0
+            else "NOT_PERFORMED"
+        ),
+        "limitations": limitations,
+        "evidence_refs": nm_refs + readelf_refs,
+    }
+    return groups
 
 
 def split_search_paths(values: list[str]) -> list[str]:
@@ -811,6 +927,7 @@ def analyze_file(path: Path, runner: EvidenceRunner) -> dict[str, Any]:
         "hardening": None,
         "dynamic_linking": None,
         "permissions": None,
+        "capabilities": None,
         "classification_evidence": [],
         "raw_evidence": [item.as_dict() for item in evidence],
     }
@@ -890,10 +1007,19 @@ def analyze_file(path: Path, runner: EvidenceRunner) -> dict[str, Any]:
         evidence.extend(permission_evidence)
         base["raw_evidence"] = [item.as_dict() for item in evidence]
         base["permissions"] = permissions
+        exported_symbols = runner.run(["nm", "-D", "--defined-only", "--", str(path)], path)
+        readelf_dynsyms = runner.run(["readelf", "-W", "--dyn-syms", "--", str(path)], path)
+        evidence.extend((exported_symbols.reference, readelf_dynsyms.reference))
+        base["raw_evidence"] = [item.as_dict() for item in evidence]
+        base["capabilities"] = evaluate_capabilities(
+            component_type, file_result.stdout, base["dynamic_linking"]["linkage"],
+            symbols, exported_symbols, readelf_dynsyms,
+        )
     else:
         base["hardening"] = None
         base["dynamic_linking"] = None
         base["permissions"] = None
+        base["capabilities"] = None
     return base
 
 
@@ -912,7 +1038,7 @@ def scan(target: Path, output_root: Path, run_id: str | None = None) -> tuple[Pa
     normalized = {
         "schema_version": SCHEMA_VERSION,
         "run_id": actual_run_id,
-        "milestone": "4-elf-permission-privilege",
+        "milestone": "5-elf-symbol-api-capability",
         "started_at": started,
         "finished_at": utc_now(),
         "target": str(target),

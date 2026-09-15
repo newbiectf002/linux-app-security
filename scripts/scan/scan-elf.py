@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""CLI for ELF/shared-object static analysis implemented through Milestone 4."""
+"""CLI for ELF/shared-object static analysis implemented through Milestone 5."""
 
 from __future__ import annotations
 

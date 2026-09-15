@@ -16,11 +16,12 @@ Milestone 3: ELF dynamic-linking metadata and search-path indicators implemented
 
 Milestone 4: ELF filesystem permission, capability, parent-directory, and safe
 search-path directory context implemented.
+Milestone 5: ELF dynamic-symbol API capability indicators implemented for ELF executables and shared objects.
 
 The current implementation is an ELF/`.so` MVP foundation, not a complete
-production scanner. Symbol/API capability, dependency provenance, correlation,
+production scanner. Dependency provenance, correlation,
 export, and reporting milestones are not implemented yet. Normalized hardening,
-dynamic-linking, and permission states are evidence and indicators, not findings.
+dynamic-linking, permission, and API capability states are evidence and indicators, not findings.
 
 ## Project structure
 

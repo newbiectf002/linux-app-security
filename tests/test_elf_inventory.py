@@ -13,7 +13,7 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts" / "lib"))
 
-from elf_inventory import parse_capabilities, scan  # noqa: E402
+from elf_inventory import parse_capabilities, parse_nm_symbols, scan  # noqa: E402
 
 
 @unittest.skipUnless(shutil.which("gcc") and shutil.which("readelf"), "requires gcc and readelf")
@@ -81,6 +81,17 @@ class ElfInventoryTests(unittest.TestCase):
         ], check=True, capture_output=True)
         (self.fixtures / "malformed").write_bytes(b"\x7fELFbroken")
         (self.fixtures / "plain.txt").write_text("not an ELF\n", encoding="utf-8")
+        capability_source = ROOT / "samples" / "elf" / "milestone5-capabilities.c"
+        self.capability_executable = self.fixtures / "milestone5-executable"
+        self.capability_shared = self.fixtures / "milestone5.so"
+        subprocess.run(["gcc", "-fno-builtin", "-o", str(self.capability_executable),
+                        str(capability_source), "-ldl"], check=True)
+        subprocess.run(["gcc", "-shared", "-fPIC", "-fno-builtin", "-DMILESTONE5_SHARED",
+                        "-Wl,-soname,milestone5.so", "-o", str(self.capability_shared),
+                        str(capability_source), "-ldl"], check=True)
+        self.capability_stripped = self.fixtures / "milestone5-stripped"
+        shutil.copy2(self.capability_executable, self.capability_stripped)
+        subprocess.run(["strip", "--strip-all", str(self.capability_stripped)], check=True)
 
     def tearDown(self) -> None:
         self.temp.cleanup()
@@ -350,6 +361,55 @@ class ElfInventoryTests(unittest.TestCase):
         scan(self.fixtures / "app", self.root / "output", run_id="immutable")
         with self.assertRaises(FileExistsError):
             scan(self.fixtures / "app", self.root / "output", run_id="immutable")
+
+
+    def test_nm_parser_normalizes_versions_and_matches_exact_names(self) -> None:
+        parsed = parse_nm_symbols("                 U system@GLIBC_2.2.5\n00000000 T my_system_helper\n")
+        self.assertEqual("system", parsed[0]["name"])
+        self.assertEqual("system@GLIBC_2.2.5", parsed[0]["raw_name"])
+        self.assertEqual("my_system_helper", parsed[1]["name"])
+
+    def test_capability_groups_for_executable(self) -> None:
+        _, result = scan(self.capability_executable, self.root / "m5-output", run_id="executable")
+        capabilities = result["records"][0]["capabilities"]
+        for group in ("command_execution", "process_debug", "filesystem", "network",
+                      "dynamic_loading", "privilege_memory"):
+            self.assertTrue(capabilities[group]["detected"], group)
+        self.assertIn("system", capabilities["command_execution"]["imported_symbols"])
+        self.assertNotIn("my_system_helper", capabilities["command_execution"]["symbols"])
+        self.assertEqual("COMPLETE_FOR_DYNAMIC_SYMBOLS", capabilities["_metadata"]["coverage"])
+
+    def test_shared_object_imports_exports_and_scope(self) -> None:
+        _, result = scan(self.capability_shared, self.root / "m5-output", run_id="shared")
+        record = result["records"][0]
+        self.assertEqual("elf_shared_object", record["type"])
+        self.assertIn("dlopen", record["capabilities"]["dynamic_loading"]["imported_symbols"])
+        self.assertIn("system", record["capabilities"]["command_execution"]["exported_symbols"])
+        self.assertEqual("elf_shared_object", record["capabilities"]["_metadata"]["component_scope"])
+        raw_commands = [reference["command"] for reference in record["raw_evidence"]]
+        self.assertIn(["nm", "-D", "--defined-only", "--", str(self.capability_shared)], raw_commands)
+
+    def test_stripped_binary_reports_partial_coverage(self) -> None:
+        _, result = scan(self.capability_stripped, self.root / "m5-output", run_id="stripped")
+        metadata = result["records"][0]["capabilities"]["_metadata"]
+        self.assertEqual("PARTIAL", metadata["coverage"])
+        self.assertTrue(any("stripped" in item.lower() for item in metadata["limitations"]))
+
+    def test_static_binary_reports_unknown_coverage(self) -> None:
+        _, result = scan(self.fixtures / "static-app", self.root / "m5-output", run_id="static-capability")
+        self.assertEqual("UNKNOWN", result["records"][0]["capabilities"]["_metadata"]["coverage"])
+
+    def test_missing_nm_uses_readelf_fallback_without_false_confidence(self) -> None:
+        original_which = shutil.which
+
+        def without_nm(tool: str) -> str | None:
+            return None if Path(tool).name == "nm" else original_which(tool)
+
+        with mock.patch("elf_inventory.shutil.which", side_effect=without_nm):
+            _, result = scan(self.capability_executable, self.root / "m5-output", run_id="nm-missing")
+        capabilities = result["records"][0]["capabilities"]
+        self.assertEqual("PARTIAL", capabilities["_metadata"]["coverage"])
+        self.assertIn("socket", capabilities["network"]["imported_symbols"])
 
 
 if __name__ == "__main__":
