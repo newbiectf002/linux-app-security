@@ -10,6 +10,22 @@ Scanner MVP hiện hỗ trợ đúng hai loại input:
 Scanner thực hiện static inspection. Scanner không chạy target và không dùng
 `ldd` trên binary được cung cấp.
 
+Flow output:
+
+```text
+Target / App
+    ↓
+ELF discovery → raw/ evidence
+    ↓
+normalized/inventory.json
+    ↓
+Correlation rules → normalized/findings.json
+    ↓
+run.json
+    ├── report.html
+    └── defectdojo-generic-findings.json (khi export tường minh)
+```
+
 ## 2. Chuẩn bị
 
 Chạy lệnh từ thư mục gốc repository:
@@ -188,6 +204,7 @@ Hiện chỉ có năm rule correlation tối giản:
 - Privileged executable sử dụng writable resolved RPATH/RUNPATH directory.
 
 `writable_by_non_owner` bao gồm cả group-writable và world-writable; đánh giá hiện tại không chứng minh runtime process thực sự thuộc group tương ứng.
+ACL, runtime identity và runtime group membership chưa được đánh giá sâu.
 
 Các hardening/API/dependency indicators khác không tự động trở thành finding.
 
@@ -305,4 +322,10 @@ Không chỉ copy riêng `findings.json`: lead cần `inventory.json`, `run.json
 - API như `system` hoặc `dlopen` chỉ là capability indicator.
 - Missing RELRO, canary, PIE hoặc FORTIFY chưa tạo finding trong iteration hiện tại.
 - Dependency `NOT_FOUND`, `UNKNOWN` hoặc unresolved context không tự động là vulnerability.
+- `NOT_EVALUATED`, `TARGET_ROOT_CONTEXT_REQUIRED` và
+  `RUNTIME_CONTEXT_REQUIRED` là trạng thái giới hạn evidence/context, không phải
+  finding xác nhận.
 - Không chạy target để “xác minh” nếu chưa có môi trường dynamic analysis cô lập và authorization riêng.
+
+Các output mẫu nhỏ, đã sanitize và không chứa raw runtime evidence nằm trong
+[`docs/examples/`](examples/).

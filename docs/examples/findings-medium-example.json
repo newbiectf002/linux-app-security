@@ -1,0 +1,28 @@
+{
+  "evaluation_scope": "STEP_6_MINIMAL_ELF_CORRELATION",
+  "findings": [
+    {
+      "affected_path": "/opt/example/lib",
+      "classification": "LIKELY_TRUE_POSITIVE",
+      "component_id": "cmp-example",
+      "confidence": "HIGH",
+      "evidence_refs": [
+        "ev-000009-readelf",
+        "ev-000020-python_os_stat"
+      ],
+      "remediation": "Remove non-owner write access or remove the directory from RPATH/RUNPATH.",
+      "rule_id": "ELF-WRITABLE-LIB-SEARCH-PATH",
+      "severity": "MEDIUM",
+      "title": "Executable uses a non-owner-writable library search directory"
+    }
+  ],
+  "schema_version": "1.0",
+  "source_run_id": "run-example",
+  "source_schema_version": "1.5",
+  "summary": {
+    "high": 0,
+    "low": 0,
+    "medium": 1,
+    "total": 1
+  }
+}

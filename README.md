@@ -21,13 +21,18 @@ Milestone 5: ELF dynamic-symbol API capability indicators implemented for ELF ex
 Milestone 6: deterministic ELF dependency resolution and provenance evidence
 implemented with explicit target-root context.
 
-Step 6 core: five minimal ELF permission/privilege correlation rules implemented;
-findings remain reviewable evidence-based classifications rather than confirmed vulnerabilities.
+Step 6 core: five minimal ELF permission/privilege correlation rules implemented
+and validated; findings remain reviewable evidence-based classifications rather
+than confirmed vulnerabilities.
 
-The current implementation is an ELF/`.so` MVP foundation, not a complete
-production scanner. Broader correlation, export, and reporting milestones are
-not implemented yet. Normalized hardening,
-dynamic-linking, permission, and API capability states are evidence and indicators, not findings.
+The static ELF/`.so` MVP now includes the CLI workflow, real-ELF validation,
+DefectDojo Generic Findings export, automatic offline HTML reports, and a
+regression test suite. It is not a complete production scanner. Normalized
+hardening, dynamic-linking, permission, and API capability states are evidence
+and indicators, not findings.
+
+Deferred work includes deeper dependency/provenance analysis, ACL evaluation,
+runtime identity and group membership, richer runtime context, and advanced UI.
 
 ## Project structure
 
@@ -74,11 +79,14 @@ python3 scripts/scan/scan-elf.py <file-or-directory>
 ```
 
 For deterministic dependency resolution, provide an explicit extracted or live
-filesystem root. Host package ownership is queried only when this is `/`:
+filesystem root. For a target on the live system:
 
 ```sh
-python3 scripts/scan/scan-elf.py <file-or-directory> --target-root <filesystem-root>
+python3 scripts/scan/scan-elf.py <target> --target-root /
 ```
+
+For an extracted application tree, replace `/` with that explicit root. Host
+package ownership is queried only when the root is `/`.
 
 Each execution creates a unique directory under `output/runs/` containing
 immutable per-invocation raw evidence, `run.json`, `normalized/inventory.json`,
@@ -93,6 +101,9 @@ python3 scripts/export/export-defectdojo.py \
   output/runs/<run-id>/normalized/findings.json
 ```
 
+The export is written to
+`output/runs/<run-id>/defectdojo-generic-findings.json`.
+
 Generate a self-contained offline HTML report:
 
 ```sh
@@ -101,3 +112,36 @@ python3 scripts/report/generate-html-report.py output/runs/<run-id>
 
 The report is written to `output/runs/<run-id>/report.html`.
 The standalone command remains available to regenerate reports for older runs.
+
+## Data flow
+
+```text
+Target / App
+    ↓
+ELF discovery → raw/ evidence
+    ↓
+normalized/inventory.json
+    ↓
+Correlation / finding rules
+    ↓
+normalized/findings.json
+    ↓
+run.json
+    ├── report.html
+    └── defectdojo-generic-findings.json (on explicit export)
+```
+
+`inventory.json` records what the scanner observed; `findings.json` contains
+evidence-backed security conclusions; `run.json` is the scan manifest;
+`report.html` is for offline human review; and the DefectDojo JSON is the
+machine-import artifact. Small sanitized examples are under
+[`docs/examples/`](docs/examples/).
+
+## Current limitations
+
+This is static ELF analysis. `UNKNOWN`, `NOT_EVALUATED`,
+`TARGET_ROOT_CONTEXT_REQUIRED`, and `RUNTIME_CONTEXT_REQUIRED` describe missing
+or deferred context and are not vulnerabilities by themselves.
+`writable_by_non_owner` includes group-writable paths, but the scanner does not
+prove that the runtime process belongs to that group. ACLs and runtime identity
+or group membership are not evaluated deeply.

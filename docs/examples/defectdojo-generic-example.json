@@ -1,0 +1,18 @@
+{
+  "findings": [
+    {
+      "component_name": "cmp-example",
+      "description": "Rule ID: ELF-WRITABLE-LIB-SEARCH-PATH\nComponent ID: cmp-example\nAffected path: /opt/example/lib\nClassification: LIKELY_TRUE_POSITIVE\nConfidence: HIGH\nEvidence references: ev-000009-readelf, ev-000020-python_os_stat",
+      "file_path": "/opt/example/lib",
+      "mitigation": "Remove non-owner write access or remove the directory from RPATH/RUNPATH.",
+      "references": "ev-000009-readelf\nev-000020-python_os_stat",
+      "severity": "Medium",
+      "static_finding": true,
+      "title": "Executable uses a non-owner-writable library search directory",
+      "unique_id_from_tool": "face4502f93caaded470c98ea44d8c68b202b1589ab33c836468339e27b48aea",
+      "vuln_id_from_tool": "ELF-WRITABLE-LIB-SEARCH-PATH"
+    }
+  ],
+  "name": "Linux ELF Security Findings",
+  "type": "Linux ELF Security"
+}

@@ -21,7 +21,9 @@ Linux desktop applications, from artifact identification through reporting.
 - Step 3: Completed
 - Step 4: Completed
 - Step 5: Batch 1 (CHK-01–CHK-06) completed; later batches NOT STARTED
-- Step 6: Minimal ELF result evaluation/correlation core implemented; awaiting review
+- Step 6: Minimal ELF result evaluation/correlation core implemented and validated
+- Step 7: Minimal DefectDojo Generic Findings JSON export implemented
+- Step 8: Offline HTML report MVP implemented and generated automatically by the CLI
 
 ## Approved Baseline
 
@@ -30,27 +32,28 @@ Linux desktop applications, from artifact identification through reporting.
 - `docs/03-component-classification.md`
 - `docs/04-security-checklist.md`
 
-## Next Step
+## Current MVP
 
-Step 6 – Human review of the minimal ELF evaluation/correlation rules
+The current static ELF MVP includes inventory, preserved raw evidence,
+hardening/dynamic-linking/permission evidence, explicit dependency-resolution
+states, minimal correlation rules, CLI orchestration, real-ELF validation,
+DefectDojo Generic Findings export, offline HTML reporting, and regression tests.
+
+## Deferred work
+
+- Deeper dependency and provenance analysis
+- ACL evaluation
+- Runtime identity and group-membership evaluation
+- Richer runtime context
+- Advanced reporting and UI
 
 ## Important constraint
 
 Do not choose tools only from documentation. Candidate tools must eventually be
 installed and experimentally tested.
 
-## Future pipeline
-
-1. Step 5 — Tool research
-2. Step 6 — Result evaluation
-3. Step 7 — DefectDojo compatibility
-4. Step 8 — Reporting
-5. Step 9 — Tool installation scripts
-6. Step 10 — Tool execution scripts
-7. Step 11 — HTML result aggregation
-
-Step 5 Batch 1 evidence and recommendations are recorded under `research/`.
-Batch 2 has not started.
+Step 5 Batch 1 evidence and recommendations are recorded under `research/`;
+later tool-research batches remain deferred.
 
 ---
 
