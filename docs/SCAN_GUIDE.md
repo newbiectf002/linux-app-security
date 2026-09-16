@@ -127,6 +127,9 @@ Kết quả sẽ nằm tại:
 ```
 
 Mỗi lần chạy tạo một `run-id` mới và không overwrite run cũ.
+Khi thành công, CLI in `run_root` cùng đường dẫn tới `run.json`, inventory và
+findings. File đơn không phải ELF executable/shared object trả exit code khác 0;
+evidence nhận diện vẫn được giữ trong run directory được nêu trong thông báo lỗi.
 
 ## 6. Scan cả thư mục
 

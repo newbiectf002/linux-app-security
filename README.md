@@ -81,5 +81,6 @@ python3 scripts/scan/scan-elf.py <file-or-directory> --target-root <filesystem-r
 ```
 
 Each execution creates a unique directory under `output/runs/` containing
-immutable per-invocation raw evidence, `normalized/inventory.json`, and the
-minimal evaluation output `normalized/findings.json`.
+immutable per-invocation raw evidence, `run.json`, `normalized/inventory.json`,
+and the minimal evaluation output `normalized/findings.json`. The command prints
+the exact paths after a successful run; use `jq` to inspect the JSON files.
