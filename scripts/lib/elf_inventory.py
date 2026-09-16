@@ -22,7 +22,7 @@ from result_evaluation import evaluate_inventory
 
 
 ELF_MAGIC = b"\x7fELF"
-SCHEMA_VERSION = "1.5"
+SCHEMA_VERSION = "1.6"
 
 CAPABILITY_SYMBOLS: dict[str, tuple[str, ...]] = {
     "command_execution": ("system", "popen", "execve", "execvp", "execl", "posix_spawn"),
@@ -143,7 +143,10 @@ class EvidenceRunner:
         self._versions[tool] = version
         return version
 
-    def run(self, command: list[str], target: Path) -> Invocation:
+    def run(
+        self, command: list[str], target: Path, timeout: int = 60,
+        environment: dict[str, str] | None = None,
+    ) -> Invocation:
         tool = Path(command[0]).name
         version = self._tool_version(tool)
         evidence_id = self._next_id(tool)
@@ -157,7 +160,8 @@ class EvidenceRunner:
             try:
                 result = subprocess.run(
                     [executable, *command[1:]], capture_output=True, text=True,
-                    errors="replace", timeout=60, check=False, env=tool_environment(),
+                    errors="replace", timeout=timeout, check=False,
+                    env=environment or tool_environment(),
                 )
                 stdout, stderr, exit_code = result.stdout, result.stderr, result.returncode
             except subprocess.TimeoutExpired as exc:
@@ -1074,7 +1078,10 @@ def iter_targets(target: Path, excluded_root: Path | None = None) -> Iterable[Pa
                 yield path
 
 
-def analyze_file(path: Path, runner: EvidenceRunner, target_root: Path | None = None) -> dict[str, Any]:
+def analyze_file(
+    path: Path, runner: EvidenceRunner, target_root: Path | None = None,
+    profile: str = "p0", yara_rules: Path | None = None,
+) -> dict[str, Any]:
     evidence: list[EvidenceReference] = []
     sha = runner.run(["sha256sum", "--", str(path)], path)
     evidence.append(sha.reference)
@@ -1187,6 +1194,11 @@ def analyze_file(path: Path, runner: EvidenceRunner, target_root: Path | None = 
         evidence.extend(dependency_evidence)
         base["raw_evidence"] = [item.as_dict() for item in evidence]
         base["dependencies"] = dependencies
+        # Imported lazily to keep EvidenceRunner reusable without a module cycle.
+        from security_enrichment import collect_binary_tools
+        tool_results, review_items = collect_binary_tools(path, runner, profile, yara_rules)
+        base["tool_results"] = tool_results
+        base["review_items"] = review_items
     else:
         base["hardening"] = None
         base["dynamic_linking"] = None
@@ -1198,12 +1210,15 @@ def analyze_file(path: Path, runner: EvidenceRunner, target_root: Path | None = 
 
 def scan(
     target: Path, output_root: Path, run_id: str | None = None,
-    target_root: Path | None = None,
+    target_root: Path | None = None, profile: str = "p0",
+    yara_rules: Path | None = None,
 ) -> tuple[Path, dict[str, Any]]:
     target = target.absolute()
     output_root = output_root.resolve()
     if not target.exists() or not (target.is_file() or target.is_dir()):
         raise ValueError(f"target must be an existing file or directory: {target}")
+    if profile not in {"p0", "p1"}:
+        raise ValueError(f"unsupported scan profile: {profile}")
     if target_root is not None:
         target_root = target_root.resolve()
         if not target_root.is_dir():
@@ -1218,11 +1233,14 @@ def scan(
     run_root.mkdir(parents=True, exist_ok=False)
     runner = EvidenceRunner(run_root)
     started = utc_now()
-    records = [analyze_file(path, runner, target_root) for path in targets]
+    records = [analyze_file(path, runner, target_root, profile, yara_rules) for path in targets]
+    from security_enrichment import collect_target_tools
+    target_tool_results = collect_target_tools(target, runner, profile)
     normalized = {
         "schema_version": SCHEMA_VERSION,
         "run_id": actual_run_id,
-        "milestone": "6-elf-dependency-provenance",
+        "milestone": "p0-p1-static-security-scan",
+        "profile": profile,
         "started_at": started,
         "finished_at": utc_now(),
         "target": str(target),
@@ -1234,7 +1252,9 @@ def scan(
             "elf_shared_object": sum(item["type"] == "elf_shared_object" for item in records),
             "malformed_elf": sum(item["type"] == "malformed_elf" for item in records),
             "unsupported": sum(item["type"] == "unsupported" for item in records),
+            "review_items": sum(len(item.get("review_items", [])) for item in records),
         },
+        "target_tool_results": target_tool_results,
     }
     normalized_dir = run_root / "normalized"
     normalized_dir.mkdir()
@@ -1246,9 +1266,11 @@ def scan(
         "run_id": actual_run_id,
         "target": str(target),
         "target_root": str(target_root) if target_root is not None else None,
+        "profile": profile,
         "started_at": started,
         "finished_at": normalized["finished_at"],
         "normalized_output": "normalized/inventory.json",
         "findings_output": "normalized/findings.json",
+        "defectdojo_output": "defectdojo-generic-findings.json",
     })
     return run_root, normalized

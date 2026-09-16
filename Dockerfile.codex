@@ -1,0 +1,21 @@
+FROM linux-app-security-research:latest
+
+# Codex is optional and intentionally separate from the scanner image. Login
+# state is mounted at runtime; no token or auth file is copied into this image.
+ARG TARGETARCH
+ARG CODEX_VERSION=0.143.0
+RUN case "$TARGETARCH" in \
+      amd64) codex_arch=x86_64; codex_sha=d9dc731dc66e227b175b13c071be9ea126cc7672fcac8a87823da50b0d2b2ffe ;; \
+      arm64) codex_arch=aarch64; codex_sha=daec4cb18f3ad3e541e8986763e73019b3ddb726d1f8692e50ea5fa988c09d78 ;; \
+      *) echo "unsupported Codex architecture: $TARGETARCH" >&2; exit 2 ;; \
+    esac \
+    && codex_asset="codex-${codex_arch}-unknown-linux-musl.tar.gz" \
+    && curl --fail --location --retry 3 \
+      "https://github.com/openai/codex/releases/download/rust-v${CODEX_VERSION}/${codex_asset}" \
+      --output "/tmp/${codex_asset}" \
+    && printf '%s  %s\n' "$codex_sha" "/tmp/${codex_asset}" | sha256sum --check --status \
+    && tar -xzf "/tmp/${codex_asset}" -C /tmp \
+    && install -m 0755 "/tmp/codex-${codex_arch}-unknown-linux-musl" /usr/local/bin/codex \
+    && rm "/tmp/${codex_asset}" "/tmp/codex-${codex_arch}-unknown-linux-musl" \
+    && codex --version
+CMD ["codex"]

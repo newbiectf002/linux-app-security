@@ -32,13 +32,47 @@ Use a private repository:
 git clone <PRIVATE_REPO_URL>
 cd linux-app-security
 
-git switch step5-tool-research
+git switch main
 
 cp .env.example .env
 
 docker compose build
 docker compose run --rm research bash
 ```
+
+## Move the built images without rebuilding
+
+On the source machine:
+
+```bash
+docker save \
+  linux-app-security-research:latest \
+  linux-app-security-codex:local \
+  | gzip > linux-app-security-images.tar.gz
+```
+
+Copy the archive and repository to the target Linux machine, then load it:
+
+```bash
+gzip -dc linux-app-security-images.tar.gz | docker load
+docker compose run --rm research bash
+```
+
+The scanner image can continue fully offline after the Grype and ClamAV caches
+are copied. Cache data lives in the ignored repository `cache/` directory and
+is not part of `docker save`; copy it separately when offline operation matters.
+Set `LOCAL_UID` and `LOCAL_GID` in `.env` to the target Linux user IDs so scan
+outputs remain editable by that user.
+
+The optional Codex image does not contain credentials. Start it with:
+
+```bash
+docker compose --profile codex run --rm codex
+```
+
+On first use, sign in interactively. The Compose file stores Codex state in the
+`codex-home` volume; do not bake or commit that volume, API keys, or auth files.
+Codex itself still requires network access to authenticate and use models.
 
 The `.env` file is optional and must not contain committed credentials. The
 Compose build uses host networking only while constructing the image to work
@@ -74,8 +108,7 @@ Do not publish this repository. If the user has provisioned a private remote:
 
 ```bash
 git remote add origin <PRIVATE_REPO_URL>
-git push -u origin master
-git push -u origin step5-tool-research
+git push -u origin main
 ```
 
 Review `git status`, ignored artifacts, and raw evidence before pushing. Raw

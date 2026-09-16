@@ -54,11 +54,17 @@ class ScanCliTests(unittest.TestCase):
             self.assertTrue((run_root / "run.json").is_file())
             self.assertTrue((run_root / "normalized" / "inventory.json").is_file())
             self.assertTrue((run_root / "normalized" / "findings.json").is_file())
+            self.assertEqual(
+                str(run_root / "defectdojo-generic-findings.json"),
+                report["defectdojo_output"],
+            )
+            self.assertTrue((run_root / "defectdojo-generic-findings.json").is_file())
             self.assertTrue((run_root / "raw").is_dir())
             self.assertEqual(str(run_root / "report.html"), report["report_output"])
             self.assertTrue((run_root / "report.html").is_file())
             run = json.loads((run_root / "run.json").read_text(encoding="utf-8"))
             self.assertEqual(str(root), run["target_root"])
+            self.assertEqual("p1", run["profile"])
 
     def test_no_report_skips_html_generation(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -78,6 +84,7 @@ class ScanCliTests(unittest.TestCase):
             run_root = Path(response["run_root"])
             self.assertNotIn("report_output", response)
             self.assertFalse((run_root / "report.html").exists())
+            self.assertTrue((run_root / "defectdojo-generic-findings.json").is_file())
 
     def test_report_failure_preserves_completed_scan_output(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

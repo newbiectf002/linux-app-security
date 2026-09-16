@@ -23,7 +23,7 @@ Correlation rules → normalized/findings.json
     ↓
 run.json
     ├── report.html
-    └── defectdojo-generic-findings.json (khi export tường minh)
+    └── defectdojo-generic-findings.json (tự động)
 ```
 
 ## 2. Chuẩn bị
@@ -34,7 +34,7 @@ Chạy lệnh từ thư mục gốc repository:
 cd /workspace/linux-app-security
 ```
 
-Các tool chính cần có:
+Image P0/P1 đã đóng gói các tool chính:
 
 ```text
 python3
@@ -46,6 +46,8 @@ nm
 stat
 getcap
 dpkg-query (chỉ dùng cho package provenance trên Debian/Ubuntu host root)
+checksec, getfacl, lddtree, strings
+capa, yara, syft, grype, trivy, clamscan
 ```
 
 Có thể dùng container của project nếu máy chính chưa có đủ tool:
@@ -53,6 +55,18 @@ Có thể dùng container của project nếu máy chính chưa có đủ tool:
 ```sh
 docker compose build
 docker compose run --rm research
+```
+
+Chuẩn bị database cần mạng một lần, sau đó scan offline:
+
+```sh
+docker compose run --rm research ./scripts/update-offline-data.sh
+```
+
+`cwe_checker` là profile riêng do image/phân tích Ghidra nặng hơn đáng kể:
+
+```sh
+docker compose --profile cwe-checker pull cwe-checker
 ```
 
 ## 3. Scan một ELF executable
@@ -68,6 +82,12 @@ Nếu chỉ có một file và không có filesystem root đi kèm:
 ```sh
 python3 scripts/scan/scan-elf.py \
   /data/application/bin/application
+```
+
+Profile mặc định là `p1` (bao gồm P0). Có thể chỉ chạy P0:
+
+```sh
+python3 scripts/scan/scan-elf.py /data/application/bin/application --profile p0
 ```
 
 Trong chế độ này, metadata, hardening, permissions, symbols và capability vẫn
@@ -168,6 +188,7 @@ output/runs/<run-id>/
 ├── normalized/
 │   ├── inventory.json
 │   └── findings.json
+├── defectdojo-generic-findings.json
 ├── report.html
 └── raw/
     ├── ev-000001-.../
@@ -255,7 +276,8 @@ Xem findings:
 jq '{summary, findings}' "$SCAN_RUN/normalized/findings.json"
 ```
 
-Export findings sang JSON cho parser `Generic Findings Import` của DefectDojo:
+JSON cho parser `Generic Findings Import` của DefectDojo được tạo tự động.
+Có thể tạo lại thủ công:
 
 ```sh
 python3 scripts/export/export-defectdojo.py \
@@ -277,9 +299,10 @@ python3 scripts/report/generate-html-report.py \
 ```
 
 Report được ghi tại `$SCAN_RUN/report.html`, không dùng CDN, web server hoặc
-external asset. Scan mới tự tạo report này mặc định; dùng `--no-report` trên
-`scan-elf.py` để tắt. Standalone generator vẫn dùng được để tạo lại report từ
-run cũ.
+external asset. Report chỉ giữ bảng hardening, correlation có thể hành động,
+trace ID và coverage tool; raw strings/SBOM/symbol/dependency dump không được
+nhúng. Scan mới tự tạo report này mặc định; dùng `--no-report` để tắt. Dùng
+`--no-defectdojo` nếu không cần JSON DefectDojo.
 
 ## 9. Package ownership trên live system
 

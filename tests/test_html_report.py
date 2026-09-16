@@ -73,17 +73,19 @@ def medium_finding(title: str = "Writable loader path") -> dict[str, object]:
 
 
 class HtmlReportTests(unittest.TestCase):
-    def test_summary_is_rendered_without_finding_details(self) -> None:
+    def test_compact_actionable_finding_is_rendered_with_trace(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             run_root = Path(temporary) / "run"
             write_run(run_root, [medium_finding()])
             report = generate_report(run_root).read_text(encoding="utf-8")
 
-        self.assertNotIn("Writable loader path", report)
-        self.assertNotIn("ELF-WRITABLE-LIB-SEARCH-PATH", report)
+        self.assertIn("Writable loader path", report)
+        self.assertIn("ELF-WRITABLE-LIB-SEARCH-PATH", report)
+        self.assertIn("ev-000009-readelf", report)
         self.assertNotIn("Security Findings", report)
         self.assertNotIn("Binary Details", report)
         self.assertNotIn("Scan Metadata", report)
+        self.assertNotIn("Remove non-owner write access.", report)
         self.assertIn("AArch64", report)
         self.assertIn("<strong>1</strong><span>Medium</span>", report)
         Parser().feed(report)
@@ -94,7 +96,7 @@ class HtmlReportTests(unittest.TestCase):
             write_run(run_root, [])
             report = generate_report(run_root).read_text(encoding="utf-8")
 
-        self.assertIn("<td>app</td>", report)
+        self.assertIn("<strong>app</strong>", report)
         self.assertIn("<strong>0</strong><span>Total findings</span>", report)
 
     def test_all_json_values_are_html_escaped(self) -> None:
@@ -176,8 +178,8 @@ class HtmlReportTests(unittest.TestCase):
         self.assertNotIn("qt_ca.qm", report)
         self.assertNotIn("App.dll", report)
         self.assertNotIn("Component ID", report)
-        self.assertIn("<td>app</td>", report)
-        self.assertIn("<td>libfoo.so</td>", report)
+        self.assertIn("<strong>app</strong>", report)
+        self.assertIn("<strong>libfoo.so</strong>", report)
         self.assertIn("DSO / PIC", report)
         self.assertNotIn("No dependencies recorded", report)
         self.assertNotIn("writable by non-owner", report)
@@ -222,6 +224,27 @@ class HtmlReportTests(unittest.TestCase):
         self.assertIn('class="indicator indicator-review">Partial</span>', report)
         self.assertIn('class="indicator indicator-review">$ORIGIN/lib</span>', report)
         self.assertIn("not confirmed vulnerabilities", report)
+
+    def test_review_strings_only_appear_below_affected_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            run_root = Path(temporary) / "run"
+            write_run(run_root, [])
+            path = run_root / "normalized" / "inventory.json"
+            data = json.loads(path.read_text())
+            data["records"][0]["review_items"] = [{
+                "category": "path", "value": "/home/builder/private/source.c",
+                "reason": "review", "evidence_ref": "ev-strings",
+            }]
+            data["records"][0]["tool_results"] = {
+                "strings": {"checks": ["CHK-08"], "status": "SUCCESS"}
+            }
+            path.write_text(json.dumps(data))
+            report = generate_report(run_root).read_text(encoding="utf-8")
+
+        self.assertIn("<strong>app</strong><div class=\"review-cues\">", report)
+        self.assertIn("/home/builder/private/source.c", report)
+        self.assertIn("CHK-08", report)
+        self.assertIn("SUCCESS: 1", report)
 
 
 if __name__ == "__main__":

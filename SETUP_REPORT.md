@@ -1,5 +1,8 @@
 # Setup Report
 
+> Historical bootstrap snapshot. For current status use `PROJECT_CONTEXT.md`
+> and `docs/P0_P1_IMPLEMENTATION.md`.
+
 ## Source files discovered
 
 The following candidates were discovered under `/mnt/c/Users/acer/Downloads/` and verified by reading their content:

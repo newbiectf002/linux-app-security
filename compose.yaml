@@ -11,6 +11,7 @@ services:
       - path: .env
         required: false
     environment:
+      HOME: /tmp/research-home
       WORKSPACE: ${WORKSPACE:-/workspace}
       OUTPUT_DIR: ${OUTPUT_DIR:-/workspace/output}
       CACHE_DIR: ${CACHE_DIR:-/workspace/cache}
@@ -19,10 +20,34 @@ services:
       MAX_EXTRACTION_DEPTH: ${MAX_EXTRACTION_DEPTH:-5}
     volumes:
       - .:/workspace
-      - research-cache:/workspace/cache
+      - ./cache:/workspace/cache
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
     working_dir: /workspace
     stdin_open: true
     tty: true
 
+  codex:
+    profiles: ["codex"]
+    image: linux-app-security-codex:local
+    build:
+      context: .
+      dockerfile: Dockerfile.codex
+      network: host
+    volumes:
+      - .:/workspace
+      - ./cache:/workspace/cache
+      - codex-home:/root/.codex
+    working_dir: /workspace
+    stdin_open: true
+    tty: true
+
+  cwe-checker:
+    profiles: ["cwe-checker"]
+    image: ghcr.io/fkie-cad/cwe_checker:stable
+    volumes:
+      - .:/workspace
+    working_dir: /workspace
+    entrypoint: ["/home/cwe/cwe_checker"]
+
 volumes:
-  research-cache:
+  codex-home:

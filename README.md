@@ -6,7 +6,7 @@ This repository holds the approved research baseline and a portable development 
 
 Steps 1–4: research baseline completed.
 
-Step 5 Batch 1 (CHK-01–CHK-06): completed and retained for reuse.
+Step 5 P0/P1 tool implementation: completed and validated in the project image.
 
 Milestone 1: ELF executable/shared-object inventory and metadata implemented.
 
@@ -26,13 +26,15 @@ and validated; findings remain reviewable evidence-based classifications rather
 than confirmed vulnerabilities.
 
 The static ELF/`.so` MVP now includes the CLI workflow, real-ELF validation,
-DefectDojo Generic Findings export, automatic offline HTML reports, and a
-regression test suite. It is not a complete production scanner. Normalized
+automatic DefectDojo Generic Findings export, compact offline HTML reports,
+P0/P1 optional collectors, and a regression test suite. It is not a complete
+production scanner. Normalized
 hardening, dynamic-linking, permission, and API capability states are evidence
 and indicators, not findings.
 
-Deferred work includes deeper dependency/provenance analysis, ACL evaluation,
-runtime identity and group membership, richer runtime context, and advanced UI.
+Deferred work includes deeper dependency/provenance analysis, ACL semantics,
+runtime identity/group membership, richer runtime context, and a full
+`cwe_checker` runtime experiment.
 
 ## Project structure
 
@@ -49,6 +51,8 @@ Read `AGENTS.md`, then `PROJECT_CONTEXT.md`, followed by the four approved docum
 
 Operational scan commands for ELF executables and shared objects are documented
 in [`docs/SCAN_GUIDE.md`](docs/SCAN_GUIDE.md).
+P0/P1 coverage, tool states, network boundaries, and validation evidence are in
+[`docs/P0_P1_IMPLEMENTATION.md`](docs/P0_P1_IMPLEMENTATION.md).
 
 ## Baseline container
 
@@ -78,6 +82,13 @@ executing the target:
 python3 scripts/scan/scan-elf.py <file-or-directory>
 ```
 
+The default `p1` profile includes P0. Use `--profile p0` for the faster core
+profile. Seed ClamAV and Grype data separately when network access is available:
+
+```sh
+./scripts/update-offline-data.sh
+```
+
 For deterministic dependency resolution, provide an explicit extracted or live
 filesystem root. For a target on the live system:
 
@@ -91,10 +102,12 @@ package ownership is queried only when the root is `/`.
 Each execution creates a unique directory under `output/runs/` containing
 immutable per-invocation raw evidence, `run.json`, `normalized/inventory.json`,
 the minimal evaluation output `normalized/findings.json`, and an offline
-`report.html`. The command prints the exact paths after a successful run; use
-`--no-report` to skip HTML generation.
+`report.html`, and `defectdojo-generic-findings.json`. The command prints the
+exact paths after a successful run; use `--no-report` or `--no-defectdojo` to
+skip an output.
 
-Export normalized findings for DefectDojo's `Generic Findings Import` parser:
+The CLI exports normalized findings automatically. To regenerate the
+DefectDojo `Generic Findings Import` document:
 
 ```sh
 python3 scripts/export/export-defectdojo.py \
@@ -128,7 +141,7 @@ normalized/findings.json
     ↓
 run.json
     ├── report.html
-    └── defectdojo-generic-findings.json (on explicit export)
+    └── defectdojo-generic-findings.json
 ```
 
 `inventory.json` records what the scanner observed; `findings.json` contains
@@ -144,4 +157,6 @@ This is static ELF analysis. `UNKNOWN`, `NOT_EVALUATED`,
 or deferred context and are not vulnerabilities by themselves.
 `writable_by_non_owner` includes group-writable paths, but the scanner does not
 prove that the runtime process belongs to that group. ACLs and runtime identity
-or group membership are not evaluated deeply.
+or group membership are not evaluated deeply. Grype and ClamAV return
+`DATA_UNAVAILABLE` until their offline databases are seeded. Tool hits remain
+review cues unless an evidence-backed correlation rule elevates them.

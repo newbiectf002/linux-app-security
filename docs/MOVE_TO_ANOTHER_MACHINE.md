@@ -5,7 +5,7 @@ Clone the private repository and switch to the current research branch:
 ```bash
 git clone <PRIVATE_REPO_URL>
 cd linux-app-security
-git switch step5-tool-research
+git switch main
 
 cp .env.example .env
 
@@ -34,4 +34,5 @@ To continue with Codex, use this instruction:
 Read AGENTS.md and PROJECT_CONTEXT.md, inspect the current git branch and Step 5 research state, then continue only from the currently authorized task.
 ```
 
-Step 5 Batch 2 must not begin without explicit authorization.
+P0/P1 status and remaining limitations are tracked in
+`docs/P0_P1_IMPLEMENTATION.md`.

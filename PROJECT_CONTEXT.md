@@ -20,7 +20,7 @@ Linux desktop applications, from artifact identification through reporting.
 - Step 2: Completed
 - Step 3: Completed
 - Step 4: Completed
-- Step 5: Batch 1 (CHK-01–CHK-06) completed; later batches NOT STARTED
+- Step 5: P0/P1 tool implementation and container validation completed
 - Step 6: Minimal ELF result evaluation/correlation core implemented and validated
 - Step 7: Minimal DefectDojo Generic Findings JSON export implemented
 - Step 8: Offline HTML report MVP implemented and generated automatically by the CLI
@@ -37,7 +37,11 @@ Linux desktop applications, from artifact identification through reporting.
 The current static ELF MVP includes inventory, preserved raw evidence,
 hardening/dynamic-linking/permission evidence, explicit dependency-resolution
 states, minimal correlation rules, CLI orchestration, real-ELF validation,
-DefectDojo Generic Findings export, offline HTML reporting, and regression tests.
+automatic DefectDojo Generic Findings export, compact offline HTML reporting,
+P0/P1 optional collectors with explicit coverage states, and regression tests.
+
+Implementation and operating boundaries are recorded in
+`docs/P0_P1_IMPLEMENTATION.md`.
 
 ## Deferred work
 
@@ -52,8 +56,8 @@ DefectDojo Generic Findings export, offline HTML reporting, and regression tests
 Do not choose tools only from documentation. Candidate tools must eventually be
 installed and experimentally tested.
 
-Step 5 Batch 1 evidence and recommendations are recorded under `research/`;
-later tool-research batches remain deferred.
+Step 5 Batch 1 evidence and recommendations remain recorded under `research/`.
+P0/P1 implementation evidence does not retroactively redefine Steps 1–4.
 
 ---
 
@@ -94,8 +98,8 @@ Nguyên tắc quan trọng:
 
 # 3. Current State
 
-**Current Step:** Step 5 Batch 1 completed; Batch 2 not started  
-**Status:** Steps 1–4 remain the approved baseline. Batch 1 evidence awaits human review.
+**Current Step:** P0/P1 implementation and validation completed
+**Status:** Steps 1–4 remain the approved baseline. Tool hits still require human review.
 
 Step 1 hiện được hiểu là bước **fingerprinting + inventory**, chưa phải bước kiểm thử lỗ hổng.
 
@@ -458,7 +462,7 @@ STEP_01_Identification.md
 
 ## Step 5 — Tool Selection
 
-**Status:** Batch 1 (CHK-01–CHK-06) completed; Batch 2 not started
+**Status:** P0/P1 implementation completed; see `docs/P0_P1_IMPLEMENTATION.md`
 
 ## Step 6 — Result Validation
 

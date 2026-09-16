@@ -1,0 +1,14 @@
+.git
+.env
+.pytest_cache
+**/__pycache__
+**/*.pyc
+.venv
+venv
+cache
+exports
+output
+research/raw
+samples/elf/generated
+tmp
+node_modules

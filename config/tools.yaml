@@ -95,6 +95,96 @@ tools:
     parser_required: true
     install_method: "Ubuntu package: libcap2-bin in isolated research container"
 
+  getfacl:
+    status: selected
+    version_tested: "Ubuntu 24.04 acl package"
+    role: supplementary
+    checks: [CHK-03]
+    offline: full
+    machine_readable: [structured_text]
+    parser_required: true
+    install_method: "Ubuntu package: acl"
+
+  lddtree:
+    status: selected
+    version_tested: "pax-utils 1.3.7"
+    role: cross_check
+    checks: [CHK-12]
+    offline: full
+    machine_readable: [structured_text]
+    parser_required: true
+    safety: "parses ELF metadata; scanner never calls ldd on untrusted targets"
+
+  capa:
+    status: selected
+    version_tested: "9.4.0"
+    role: indicator
+    checks: [CHK-06, CHK-09, CHK-13, CHK-15, CHK-16, CHK-17]
+    offline: full
+    machine_readable: [json]
+    parser_required: true
+    limitations: ["matches are capability indicators and require analyst validation"]
+
+  cwe_checker:
+    status: isolated_profile
+    version_tested: "0.9.0 CLI verified in stable container; full scan experiment pending"
+    role: indicator
+    checks: [CHK-07]
+    offline: full_after_image_pull
+    machine_readable: [json]
+    parser_required: true
+    install_method: "Compose profile using ghcr.io/fkie-cad/cwe_checker:stable"
+    limitations: ["largest P1 deployment due to Ghidra/native analysis stack", "not embedded in the main scanner image"]
+
+  yara:
+    status: selected
+    version_tested: "4.5.0 (Ubuntu 24.04)"
+    role: indicator
+    checks: [CHK-08, CHK-09, CHK-10, CHK-13, CHK-16, CHK-17, CHK-18]
+    offline: full
+    machine_readable: [structured_text]
+    parser_required: true
+    limitations: ["rule matches are review cues, not confirmed vulnerabilities"]
+
+  syft:
+    status: selected
+    version_tested: "1.51.1"
+    role: primary
+    checks: [CHK-12]
+    offline: full
+    machine_readable: [syft_json]
+    parser_required: true
+
+  grype:
+    status: selected
+    version_tested: "0.118.0"
+    role: candidate_vulnerability_source
+    checks: [CHK-12]
+    offline: full_after_database_seed
+    machine_readable: [json]
+    parser_required: true
+    limitations: ["database must be refreshed separately", "matches require component/version validation"]
+
+  trivy_secret:
+    status: selected
+    version_tested: "0.73.0"
+    role: indicator
+    checks: [CHK-08]
+    offline: full
+    machine_readable: [json]
+    parser_required: true
+    limitations: ["intended for extracted plaintext resources; bare ELF coverage is supplementary"]
+
+  clamav:
+    status: selected
+    version_tested: "Ubuntu 24.04 security package"
+    role: indicator
+    checks: [CHK-17]
+    offline: full_after_database_seed
+    machine_readable: [structured_text]
+    parser_required: true
+    limitations: ["signature database must be refreshed separately", "signature hits require independent validation"]
+
   jq:
     status: selected
     version_tested: "1.7.1"

@@ -7,7 +7,7 @@ import os
 from collections import Counter
 from html import escape
 from pathlib import Path, PurePath
-from typing import Any, Iterable
+from typing import Any
 
 SEVERITIES = ("CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO")
 ELF_TYPES = ("elf_executable", "elf_shared_object")
@@ -38,9 +38,6 @@ def load_run(run_root: Path) -> tuple[dict[str, Any], dict[str, Any], dict[str, 
     if not isinstance(findings.get("findings"), list): raise ValueError("findings document must contain a 'findings' array")
     return run, inventory, findings
 
-def _definition_rows(rows: Iterable[tuple[str, Any]]) -> str:
-    return "".join(f"<dt>{_html(k)}</dt><dd>{_html(v)}</dd>" for k, v in rows if v not in (None, "", [], {}))
-
 def _display_root(run: dict[str, Any], records: list[dict[str, Any]]) -> Path | None:
     target_value = run.get("target")
     if not isinstance(target_value, str) or not target_value: return None
@@ -62,11 +59,6 @@ def _display_path(value: Any, root: Path | None) -> Any:
 def _basename(record: dict[str, Any]) -> str:
     value = record.get("path")
     return Path(value).name if isinstance(value, str) else "Binary"
-
-def _anchor(record: dict[str, Any], index: int) -> str:
-    raw = str(record.get("component_id", ""))
-    safe = "".join(c for c in raw if c.isalnum() or c in "-_")
-    return f"binary-{safe or index}"
 
 def _status(record: dict[str, Any], name: str) -> str | None:
     hardening = record.get("hardening")
@@ -114,7 +106,7 @@ def _indicator_class(name: str, value: str) -> str:
 
 def _overview_table(records: list[dict[str, Any]], shared: bool) -> str:
     rows = []
-    for index, record in enumerate(records, 1):
+    for record in records:
         cells = [("architecture", _architecture(record)),
                  ("nx", _short_status("nx", _status(record,"nx"))),
                  ("pie", _short_status("pie", _status(record,"pie"), shared)),
@@ -124,7 +116,14 @@ def _overview_table(records: list[dict[str, Any]], shared: bool) -> str:
                  ("runpath", _search_path(record,"runpath")),
                  ("fortify", _short_status("fortify", _status(record,"fortify"))),
                  ("stripped", "—")]
-        rows.append(f'<tr><td>{_html(_basename(record))}</td>' +
+        review = record.get("review_items") if isinstance(record.get("review_items"), list) else []
+        review_values = [item.get("value") for item in review if isinstance(item, dict) and item.get("value")]
+        review_html = ""
+        if review_values:
+            review_html = '<div class="review-cues"><strong>Review:</strong>' + "".join(
+                f'<code>{_html(value)}</code>' for value in review_values[:20]
+            ) + '</div>'
+        rows.append(f'<tr><td><strong>{_html(_basename(record))}</strong>{review_html}</td>' +
                     "".join(f'<td><span class="indicator {_indicator_class(name, value)}">{_html(value)}</span></td>'
                             for name, value in cells) + "</tr>")
     body = "".join(rows) or '<tr><td colspan="10" class="muted">No matching ELF binaries.</td></tr>'
@@ -134,50 +133,70 @@ def _overview_table(records: list[dict[str, Any]], shared: bool) -> str:
             '<th>RELRO</th><th>RPATH</th><th>RUNPATH</th><th>FORTIFY</th><th>Symbols Stripped</th>' +
             f'</tr></thead><tbody>{body}</tbody></table></div>')
 
-def _finding_html(item: dict[str, Any], index: int, root: Path | None) -> str:
-    severity = str(item.get("severity", "INFO")).upper()
-    if severity not in SEVERITIES: severity = "INFO"
-    evidence = item.get("evidence_refs") if isinstance(item.get("evidence_refs"), list) else []
-    extra = ""
-    for heading, key in (("Description","description"),("Remediation","remediation")):
-        if item.get(key): extra += f"<h4>{heading}</h4><p>{_html(item[key])}</p>"
-    if evidence: extra += '<h4>Evidence references</h4><ul class="compact">' + "".join(f'<li><code>{_html(x)}</code></li>' for x in evidence) + '</ul>'
-    rows = (("Rule ID",item.get("rule_id")),("Affected path",_display_path(item.get("affected_path"),root)),
-            ("Confidence",item.get("confidence")),("Classification",item.get("classification")))
-    return f'<article class="finding"><div class="finding-title"><span class="badge severity-{severity.lower()}">{_html(severity)}</span><h3>{_html(item.get("title",f"Finding {index}"))}</h3></div><dl>{_definition_rows(rows)}</dl>{extra}</article>'
+def _findings_table(findings: list[dict[str, Any]], root: Path | None) -> str:
+    if not findings:
+        return '<p class="muted">No evidence-backed correlation findings.</p>'
+    rows = []
+    for item in findings:
+        severity = str(item.get("severity", "INFO")).upper()
+        if severity not in SEVERITIES: severity = "INFO"
+        refs = item.get("evidence_refs") if isinstance(item.get("evidence_refs"), list) else []
+        trace = " ".join(f'<code class="trace">{_html(ref)}</code>' for ref in refs)
+        rows.append(
+            f'<tr><td><span class="indicator severity-{severity.lower()}">{_html(severity)}</span></td>'
+            f'<td><strong>{_html(item.get("title"))}</strong><br><code>{_html(item.get("rule_id"))}</code></td>'
+            f'<td>{_html(_display_path(item.get("affected_path"), root))}</td>'
+            f'<td>{_html(item.get("classification"))}<br><span class="muted">{_html(item.get("confidence"))} confidence</span></td>'
+            f'<td>{trace or "—"}</td></tr>'
+        )
+    return ('<div class="table-wrap"><table><thead><tr><th>Severity</th><th>Finding</th>'
+            '<th>Affected path</th><th>Assessment</th><th>Trace</th></tr></thead><tbody>'
+            + "".join(rows) + '</tbody></table></div>')
 
-def _capabilities_html(record: dict[str, Any]) -> str:
-    capabilities = record.get("capabilities")
-    if not isinstance(capabilities, dict): return ""
-    groups = []
-    for name, value in capabilities.items():
-        if name.startswith("_") or not isinstance(value, dict) or value.get("detected") is not True: continue
-        symbols = value.get("symbols")
-        if not isinstance(symbols, list) or not symbols: continue
-        groups.append(f'<h5>{_html(name.replace("_"," ").title())}</h5><ul class="compact symbols">' +
-                      "".join(f'<li><code>{_html(x)}</code></li>' for x in symbols) + '</ul>')
-    return '<h4>Security Capabilities</h4>' + "".join(groups) if groups else ""
 
-def _dependencies_html(record: dict[str, Any], root: Path | None) -> str:
-    dependencies = record.get("dependencies")
-    if not isinstance(dependencies, list) or not dependencies: return ""
-    rows=[]
-    for dep in dependencies:
-        if not isinstance(dep, dict): continue
-        status=dep.get("resolution_status"); css=' class="warning-text"' if status != "RESOLVED" else ""
-        rows.append(f'<tr><td>{_html(dep.get("dependency_name"))}</td><td{css}>{_html(status)}</td><td>{_html(_display_path(dep.get("resolved_path"),root))}</td></tr>')
-    if not rows: return ""
-    return '<h4>Dependencies</h4><div class="table-wrap"><table><thead><tr><th>Dependency</th><th>Status</th><th>Resolved Path</th></tr></thead><tbody>' + "".join(rows) + '</tbody></table></div>'
-
-def _binary_detail(record: dict[str, Any], index: int, root: Path | None) -> str:
-    strings = record.get("strings")
-    strings_html = ('<h4>Strings</h4><ul class="compact">' + "".join(f'<li><code>{_html(x)}</code></li>' for x in strings) + '</ul>') if isinstance(strings,list) and strings else ""
-    permissions = record.get("permissions") if isinstance(record.get("permissions"),dict) else {}
-    file_data = permissions.get("file") if isinstance(permissions.get("file"),dict) else {}
-    warning = '<div class="warning"><strong>Warning:</strong> writable by non-owner.</div>' if file_data.get("writable_by_non_owner") is True else ""
-    content = strings_html + warning + _capabilities_html(record) + _dependencies_html(record,root)
-    if not content: return ""
-    return f'<article class="binary-detail" id="{_html(_anchor(record,index))}"><h3>{_html(_basename(record))}</h3><dl>{_definition_rows((("Path",_display_path(record.get("path"),root)),))}</dl>{content}</article>'
+def _tool_coverage(records: list[dict[str, Any]], inventory: dict[str, Any]) -> str:
+    grouped: dict[str, Counter[str]] = {}
+    checks: dict[str, set[str]] = {}
+    summaries: dict[str, Counter[str]] = {}
+    def add_result(name: str, result: dict[str, Any]) -> None:
+        grouped.setdefault(name, Counter())[str(result.get("status", "UNKNOWN"))] += 1
+        checks.setdefault(name, set()).update(map(str, result.get("checks", [])))
+        summary = result.get("summary")
+        if isinstance(summary, dict):
+            for key, value in summary.items():
+                if isinstance(value, bool):
+                    summaries.setdefault(name, Counter())[str(key)] += int(value)
+                elif isinstance(value, int):
+                    summaries.setdefault(name, Counter())[str(key)] += value
+    for record in records:
+        result_map = record.get("tool_results")
+        if not isinstance(result_map, dict): continue
+        for name, result in result_map.items():
+            if not isinstance(result, dict): continue
+            add_result(str(name), result)
+    target_results = inventory.get("target_tool_results")
+    if isinstance(target_results, dict):
+        for name, result in target_results.items():
+            if not isinstance(result, dict): continue
+            add_result(str(name), result)
+    if not grouped:
+        return '<p class="muted">No optional tool coverage was recorded.</p>'
+    rows = []
+    for name in sorted(grouped):
+        states = grouped[name]
+        status = ", ".join(f"{key}: {states[key]}" for key in sorted(states))
+        alert = any(key in states for key in ("ERROR", "TIMEOUT", "DATA_UNAVAILABLE", "TOOL_UNAVAILABLE"))
+        css = "indicator-review" if alert else "indicator-good"
+        compact_summary = summaries.get(name, Counter())
+        result_text = ", ".join(
+            f"{key.replace('_', ' ')}: {compact_summary[key]}"
+            for key in sorted(compact_summary)
+            if compact_summary[key] != 0 or key.endswith("count")
+        ) or "—"
+        rows.append(f'<tr><td><strong>{_html(name)}</strong></td><td>{_html(", ".join(sorted(checks[name])))}</td>'
+                    f'<td><span class="indicator {css}">{_html(status)}</span></td><td>{_html(result_text)}</td></tr>')
+    return ('<div class="table-wrap"><table><thead><tr><th>Tool</th><th>Checklist coverage</th>'
+            '<th>Run status (count)</th><th>Compact result</th></tr></thead><tbody>' + "".join(rows) + '</tbody></table></div>')
 
 def render_report(run: dict[str, Any], inventory: dict[str, Any], findings_document: dict[str, Any]) -> str:
     raw_records, raw_findings = inventory.get("records"), findings_document.get("findings")
@@ -189,9 +208,11 @@ def render_report(run: dict[str, Any], inventory: dict[str, Any], findings_docum
     root=_display_root(run,all_records); counts=Counter(str(x.get("severity","")).upper() for x in findings)
     metrics="".join(f'<div class="metric severity-{s.lower()}"><strong>{counts[s]}</strong><span>{s.title()}</span></div>' for s in SEVERITIES)
     metrics += f'<div class="metric"><strong>{len(findings)}</strong><span>Total findings</span></div><div class="metric"><strong>{len(executables)}</strong><span>ELF executables</span></div><div class="metric"><strong>{len(shared)}</strong><span>Shared objects</span></div><div class="metric"><strong>{len(all_records)-len(records)}</strong><span>Filtered non-ELF</span></div>'
+    findings_section = _findings_table(findings, root)
+    coverage_section = _tool_coverage(records, inventory)
     return f'''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Linux ELF Security Report — {_html(run.get("run_id"))}</title><style>
-:root{{--ink:#172033;--muted:#667085;--line:#d9dee8;--panel:#fff;--bg:#f4f6fa;--alert:#b42318;--alert-bg:#fef3f2;--review:#b54708;--review-bg:#fff7ed;--good:#067647;--good-bg:#ecfdf3}}*{{box-sizing:border-box}}body{{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 system-ui,sans-serif}}main{{max-width:1280px;margin:auto;padding:32px 20px 60px}}header,section{{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:24px;margin-bottom:20px}}h1,h2{{line-height:1.25}}h1{{margin-top:0}}h2{{border-bottom:1px solid var(--line);padding-bottom:10px}}.metrics{{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px}}.metric{{border:1px solid var(--line);border-radius:9px;padding:14px;display:flex;flex-direction:column}}.metric strong{{font-size:24px}}.metric span,.muted{{color:var(--muted)}}.metric.severity-critical,.metric.severity-high{{color:var(--alert);background:var(--alert-bg);border-color:#fecdca}}.metric.severity-medium{{color:var(--review);background:var(--review-bg);border-color:#fedf89}}.metric.severity-low{{color:#175cd3;background:#eff8ff;border-color:#b2ddff}}.metric.severity-info{{color:#475467;background:#f8f9fc}}.metric.severity-critical span,.metric.severity-high span,.metric.severity-medium span,.metric.severity-low span,.metric.severity-info span{{color:inherit}}.table-wrap{{overflow-x:auto}}table{{width:100%;border-collapse:collapse}}th,td{{border-bottom:1px solid var(--line);text-align:left;padding:8px;overflow-wrap:anywhere;vertical-align:top}}.overview{{white-space:nowrap}}a{{color:#175cd3}}.indicator{{display:inline-block;border-radius:999px;padding:2px 8px;font-weight:700}}.indicator-alert{{color:var(--alert);background:var(--alert-bg)}}.indicator-review{{color:var(--review);background:var(--review-bg)}}.indicator-good{{color:var(--good);background:var(--good-bg)}}.indicator-neutral{{color:var(--muted);background:#f2f4f7}}.legend{{color:var(--muted);font-size:13px;margin:0 0 14px}}@media(max-width:650px){{main{{padding-inline:10px}}}}
-</style></head><body><main><header><h1>Linux ELF Security Report</h1><p>Focused static-analysis view for ELF executables and shared objects.</p></header><section><h2>Scan Summary</h2><div class="metrics">{metrics}</div></section><section><h2>ELF Executables</h2><p class="legend">Red and orange indicators require review; they are not confirmed vulnerabilities by themselves.</p>{_overview_table(executables,False)}</section><section><h2>Shared Objects</h2><p class="legend">Red and orange indicators require review; they are not confirmed vulnerabilities by themselves.</p>{_overview_table(shared,True)}</section></main></body></html>'''
+:root{{--ink:#172033;--muted:#667085;--line:#d9dee8;--panel:#fff;--bg:#f4f6fa;--alert:#b42318;--alert-bg:#fef3f2;--review:#b54708;--review-bg:#fff7ed;--good:#067647;--good-bg:#ecfdf3}}*{{box-sizing:border-box}}body{{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 system-ui,sans-serif}}main{{max-width:1280px;margin:auto;padding:32px 20px 60px}}header,section{{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:24px;margin-bottom:20px}}h1,h2{{line-height:1.25}}h1{{margin-top:0}}h2{{border-bottom:1px solid var(--line);padding-bottom:10px}}.metrics{{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px}}.metric{{border:1px solid var(--line);border-radius:9px;padding:14px;display:flex;flex-direction:column}}.metric strong{{font-size:24px}}.metric span,.muted{{color:var(--muted)}}.metric.severity-critical,.metric.severity-high,.severity-critical,.severity-high{{color:var(--alert);background:var(--alert-bg);border-color:#fecdca}}.metric.severity-medium,.severity-medium{{color:var(--review);background:var(--review-bg);border-color:#fedf89}}.metric.severity-low,.severity-low{{color:#175cd3;background:#eff8ff;border-color:#b2ddff}}.metric.severity-info,.severity-info{{color:#475467;background:#f8f9fc}}.metric.severity-critical span,.metric.severity-high span,.metric.severity-medium span,.metric.severity-low span,.metric.severity-info span{{color:inherit}}.table-wrap{{overflow-x:auto}}table{{width:100%;border-collapse:collapse}}th,td{{border-bottom:1px solid var(--line);text-align:left;padding:8px;overflow-wrap:anywhere;vertical-align:top}}.overview{{white-space:nowrap}}a{{color:#175cd3}}code{{font-size:12px}}.indicator{{display:inline-block;border-radius:999px;padding:2px 8px;font-weight:700}}.indicator-alert{{color:var(--alert);background:var(--alert-bg)}}.indicator-review{{color:var(--review);background:var(--review-bg)}}.indicator-good{{color:var(--good);background:var(--good-bg)}}.indicator-neutral{{color:var(--muted);background:#f2f4f7}}.legend{{color:var(--muted);font-size:13px;margin:0 0 14px}}.review-cues{{margin-top:6px;display:flex;flex-direction:column;white-space:normal;color:var(--review);max-width:440px}}.review-cues code{{background:var(--review-bg);padding:2px 5px;margin-top:3px;overflow-wrap:anywhere}}.trace{{display:inline-block;background:#f2f4f7;padding:2px 5px;margin:1px}}@media(max-width:650px){{main{{padding-inline:10px}}}}
+</style></head><body><main><header><h1>Linux ELF Security Report</h1><p>Focused static-analysis view for ELF executables and shared objects.</p></header><section><h2>Scan Summary</h2><div class="metrics">{metrics}</div></section><section><h2>ELF Executables</h2><p class="legend">Red and orange indicators require review; they are not confirmed vulnerabilities by themselves. Embedded path/URL strings appear only for files requiring review.</p>{_overview_table(executables,False)}</section><section><h2>Shared Objects</h2><p class="legend">Red and orange indicators require review; they are not confirmed vulnerabilities by themselves.</p>{_overview_table(shared,True)}</section><section><h2>Actionable Correlations</h2><p class="legend">Compact evidence-backed results only. Trace IDs map to directories under <code>raw/</code>.</p>{findings_section}</section><section><h2>Tool Coverage</h2>{coverage_section}</section></main></body></html>'''
 
 def generate_report(run_root: Path, output_path: Path | None = None) -> Path:
     run_root=run_root.resolve(); run,inventory,findings=load_run(run_root)

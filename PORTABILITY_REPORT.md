@@ -1,5 +1,8 @@
 # Portability Report
 
+> Historical portability snapshot. Current branch/image transfer instructions
+> are maintained in `docs/PORTABILITY.md`.
+
 ## Git branch
 
 Current branch: `step5-tool-research`
