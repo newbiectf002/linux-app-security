@@ -237,6 +237,20 @@ Xem findings:
 jq '{summary, findings}' "$SCAN_RUN/normalized/findings.json"
 ```
 
+Export findings sang JSON cho parser `Generic Findings Import` của DefectDojo:
+
+```sh
+python3 scripts/export/export-defectdojo.py \
+  "$SCAN_RUN/normalized/findings.json"
+```
+
+Mặc định lệnh tạo `$SCAN_RUN/defectdojo-generic-findings.json`. Export chỉ map
+dữ liệu đã có như severity, rule/component ID, affected path, classification,
+confidence, remediation và evidence references; không tự tạo CVE, CWE hoặc
+package/version. Findings rỗng tạo report hợp lệ với mảng `findings` rỗng.
+Trường top-level `type` là `Linux ELF Security`; theo convention của Generic
+Findings Import, DefectDojo có thể hiển thị Test Type dẫn xuất từ tên này.
+
 ## 9. Package ownership trên live system
 
 Chỉ dùng host package database khi chủ động scan live root `/`:

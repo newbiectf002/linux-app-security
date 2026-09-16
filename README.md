@@ -84,3 +84,10 @@ Each execution creates a unique directory under `output/runs/` containing
 immutable per-invocation raw evidence, `run.json`, `normalized/inventory.json`,
 and the minimal evaluation output `normalized/findings.json`. The command prints
 the exact paths after a successful run; use `jq` to inspect the JSON files.
+
+Export normalized findings for DefectDojo's `Generic Findings Import` parser:
+
+```sh
+python3 scripts/export/export-defectdojo.py \
+  output/runs/<run-id>/normalized/findings.json
+```
