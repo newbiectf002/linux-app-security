@@ -152,6 +152,7 @@ output/runs/<run-id>/
 ├── normalized/
 │   ├── inventory.json
 │   └── findings.json
+├── report.html
 └── raw/
     ├── ev-000001-.../
     │   ├── metadata.json
@@ -250,6 +251,18 @@ confidence, remediation và evidence references; không tự tạo CVE, CWE ho�
 package/version. Findings rỗng tạo report hợp lệ với mảng `findings` rỗng.
 Trường top-level `type` là `Linux ELF Security`; theo convention của Generic
 Findings Import, DefectDojo có thể hiển thị Test Type dẫn xuất từ tên này.
+
+Tạo HTML report tĩnh, tự chứa và mở trực tiếp bằng browser:
+
+```sh
+python3 scripts/report/generate-html-report.py \
+  "$SCAN_RUN"
+```
+
+Report được ghi tại `$SCAN_RUN/report.html`, không dùng CDN, web server hoặc
+external asset. Scan mới tự tạo report này mặc định; dùng `--no-report` trên
+`scan-elf.py` để tắt. Standalone generator vẫn dùng được để tạo lại report từ
+run cũ.
 
 ## 9. Package ownership trên live system
 

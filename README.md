@@ -82,8 +82,9 @@ python3 scripts/scan/scan-elf.py <file-or-directory> --target-root <filesystem-r
 
 Each execution creates a unique directory under `output/runs/` containing
 immutable per-invocation raw evidence, `run.json`, `normalized/inventory.json`,
-and the minimal evaluation output `normalized/findings.json`. The command prints
-the exact paths after a successful run; use `jq` to inspect the JSON files.
+the minimal evaluation output `normalized/findings.json`, and an offline
+`report.html`. The command prints the exact paths after a successful run; use
+`--no-report` to skip HTML generation.
 
 Export normalized findings for DefectDojo's `Generic Findings Import` parser:
 
@@ -91,3 +92,12 @@ Export normalized findings for DefectDojo's `Generic Findings Import` parser:
 python3 scripts/export/export-defectdojo.py \
   output/runs/<run-id>/normalized/findings.json
 ```
+
+Generate a self-contained offline HTML report:
+
+```sh
+python3 scripts/report/generate-html-report.py output/runs/<run-id>
+```
+
+The report is written to `output/runs/<run-id>/report.html`.
+The standalone command remains available to regenerate reports for older runs.
