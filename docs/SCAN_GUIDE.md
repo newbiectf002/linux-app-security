@@ -175,12 +175,15 @@ Chứa dữ liệu normalized theo component, gồm:
 
 ### `normalized/findings.json`
 
-Hiện chỉ có bốn rule correlation tối giản:
+Hiện chỉ có năm rule correlation tối giản:
 
 - Writable executable.
 - Privileged writable executable.
 - Writable shared object.
+- Executable sử dụng writable resolved RPATH/RUNPATH directory.
 - Privileged executable sử dụng writable resolved RPATH/RUNPATH directory.
+
+`writable_by_non_owner` bao gồm cả group-writable và world-writable; đánh giá hiện tại không chứng minh runtime process thực sự thuộc group tương ứng.
 
 Các hardening/API/dependency indicators khác không tự động trở thành finding.
 

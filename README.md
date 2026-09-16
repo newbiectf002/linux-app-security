@@ -21,7 +21,7 @@ Milestone 5: ELF dynamic-symbol API capability indicators implemented for ELF ex
 Milestone 6: deterministic ELF dependency resolution and provenance evidence
 implemented with explicit target-root context.
 
-Step 6 core: four minimal ELF permission/privilege correlation rules implemented;
+Step 6 core: five minimal ELF permission/privilege correlation rules implemented;
 findings remain reviewable evidence-based classifications rather than confirmed vulnerabilities.
 
 The current implementation is an ELF/`.so` MVP foundation, not a complete

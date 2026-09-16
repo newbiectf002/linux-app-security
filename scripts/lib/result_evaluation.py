@@ -90,7 +90,7 @@ def evaluate_record(record: dict[str, Any]) -> list[dict[str, Any]]:
             file_refs, "Remove group/world write access from the shared object.",
         ))
 
-    if component_type == "elf_executable" and privileged:
+    if component_type == "elf_executable":
         dynamic_linking = record.get("dynamic_linking") or {}
         for directory in permissions.get("search_path_directories", []):
             directory_permissions = directory.get("permissions") or {}
@@ -103,13 +103,24 @@ def evaluate_record(record: dict[str, Any]) -> list[dict[str, Any]]:
             source = str(directory.get("source", "")).lower()
             path_refs = (dynamic_linking.get(source) or {}).get("evidence_refs", [])
             directory_refs = directory.get("evidence_refs", [])
-            findings.append(finding(
-                "ELF-PRIV-WRITABLE-LIB-SEARCH-PATH", component_id,
-                "Privileged executable uses a non-owner-writable library search directory",
-                "HIGH", directory["resolved"],
-                unique_evidence([*capability_refs, *file_refs, *path_refs, *directory_refs], valid_ids),
-                "Remove non-owner write access or remove the directory from RPATH/RUNPATH.",
-            ))
+            if privileged:
+                findings.append(finding(
+                    "ELF-PRIV-WRITABLE-LIB-SEARCH-PATH", component_id,
+                    "Privileged executable uses a non-owner-writable library search directory",
+                    "HIGH", directory["resolved"],
+                    unique_evidence(
+                        [*capability_refs, *file_refs, *path_refs, *directory_refs], valid_ids,
+                    ),
+                    "Remove non-owner write access or remove the directory from RPATH/RUNPATH.",
+                ))
+            else:
+                findings.append(finding(
+                    "ELF-WRITABLE-LIB-SEARCH-PATH", component_id,
+                    "Executable uses a non-owner-writable library search directory",
+                    "MEDIUM", directory["resolved"],
+                    unique_evidence([*path_refs, *directory_refs], valid_ids),
+                    "Remove non-owner write access or remove the directory from RPATH/RUNPATH.",
+                ))
     return findings
 
 
